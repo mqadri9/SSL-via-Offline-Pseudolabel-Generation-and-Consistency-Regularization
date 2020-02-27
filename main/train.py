@@ -30,8 +30,6 @@ net = getattr(arch, type)
 
 path_to_dataset = os.path.join(cfg.dataset_dir, cfg.dataset)
 dataset = importlib.import_module(cfg.dataset)
-specLoader = dataset.SpecLoader()
-specLoader.prepare_data(path_to_dataset)
 net = net()
 net = net.to(device)
 
@@ -50,7 +48,14 @@ if args.resume:
 
 optimizer = optim.SGD(net.parameters(), lr=cfg.lr, momentum=0.9, weight_decay=5e-4)
 
-def train():
+
+def load_teacher():
+    net_teacher = cp.deepcopy(net)
+    checkpoint = torch.load('{}/checkpoint_teacher/ckpt_loop_0.pth'.format(path_to_dataset))
+    net_teacher.load_state_dict(checkpoint['net'])
+    return net_teacher
+
+def train(fun="teacher", rt_lp=1):
     cudnn.fastest = True
     cudnn.benchmark = True
     cudnn.deterministic = False
@@ -80,7 +85,7 @@ def train():
     
             progress_bar(batch_idx, len(specLoader.trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                 % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-        
+                
         net.eval()
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(specLoader.testloader):
@@ -106,9 +111,23 @@ def train():
                 'epoch': epoch,
             }
             if not os.path.isdir('checkpoint'):
-                os.mkdir('checkpoint')
-            torch.save(state, '{}/checkpoint/ckpt.pth'.format(path_to_dataset))
+                os.mkdir('checkpoint')                
+            torch.save(state, '{}/checkpoint_{}/ckpt_loop_{}.pth'.format(path_to_dataset, fun, rt_lp))
             best_acc = acc
+                
+        ## NEED TO RECREATE PSEUDOLABELS FROM NEW STUDENT MODEL
 
 if __name__ == "__main__":
-    train()
+    if not cfg.load_latest_teacher:
+        train(fun, 0)
+        net_teacher = load_teacher()
+    else:
+        net_teacher = load_teacher()
+    
+    print("Loaded teacher network")
+    max_retrain_loop = cfg.max_retrain_loop
+    if cfg.train_teacher:
+        max_retrain_loop = 0
+    for rt_lp in range(max_retrain_loop):
+        print("training student loop {}".format(rt_lp))
+        

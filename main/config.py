@@ -12,7 +12,7 @@ def add_pypath(path):
 
 
 class Config:
-    trainset = ["CIFAR10"]
+    trainset = ["STL10"]
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, '..')
     model_dir = os.path.join(root_dir, 'models')
@@ -21,6 +21,10 @@ class Config:
     net_arch = "resnet.ResNet50"
     dataset = "CIFAR10"
     lr = 1e-3
+    num_workers = 2
+    batch_size = 32 #CIFAR 128
+    train_teacher = True
+    max_retrain_loops = 3
     
     def set_args(self, gpu_ids, continue_train=False):
         self.gpu_ids = gpu_ids
