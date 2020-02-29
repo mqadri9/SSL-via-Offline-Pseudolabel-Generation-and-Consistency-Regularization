@@ -12,7 +12,7 @@ def add_pypath(path):
 
 
 class Config:
-    trainset = ["STL10"]
+    trainset = ["CIFAR10"]
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, '..')
     model_dir = os.path.join(root_dir, 'models')
@@ -20,11 +20,17 @@ class Config:
     
     net_arch = "resnet.ResNet50"
     dataset = "CIFAR10"
-    lr = 1e-3
+    lr = 0.1
     num_workers = 2
-    batch_size = 32 #CIFAR 128
+    batch_size = 64 #CIFAR 128
+    num_epochs = 50
+    lr_dec_epoch = [4, 15]
+    lr_dec_factor = 0.1
     train_teacher = True
-    max_retrain_loops = 3
+    load_latest_teacher = False
+    max_retrain_loop = 3
+    training_split_percentage = 100 # percentage of the labelled data
+    labelled_selection_prob = 50
     
     def set_args(self, gpu_ids, continue_train=False):
         self.gpu_ids = gpu_ids
