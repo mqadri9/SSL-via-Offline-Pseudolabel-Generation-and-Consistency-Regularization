@@ -90,22 +90,23 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
     print("Start epoch {}".format(start_epoch))
     for epoch in range(start_epoch, cfg.num_epochs):
         print('\nEpoch: %d' % epoch)
-        scheduler.step()
-        test_loss = 0
-        correct = 0
-        total = 0       
+        scheduler.step() 
         train_loss = 0
         correct = 0
         total = 0
         iter = 0
         net.train()
         for batch_idx, data in enumerate(specLoader.batch_generator):
-            inputs = data[0]
-            targets = data[1]
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs = data["input"]
+            targets = data['label']
+            cont_targets = data['cont_label']
+            #print(inputs.shape)
+            #print(targets.shape)
+            #print(cont_targets.shape)
+            inputs, targets, cont_targets = inputs.to(device), targets.to(device), cont_targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
-            loss = specLoader.criterion(outputs, targets)
+            loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'], cfg)
             loss.backward()
             optimizer.step()
      
@@ -116,13 +117,16 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
             iter +=1
             progress_bar(batch_idx, len(specLoader.batch_generator), 'Loss: %.3f | Acc: %.3f%% (%d/%d) | lr: %f'
                 % (train_loss/(batch_idx+1), 100.*correct/total, correct, total, scheduler.get_lr()[0]))
-                 
+        
+        test_loss = 0
+        correct = 0
+        total = 0                       
         net.eval()
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(specLoader.testloader):
                 inputs, targets = inputs.to(device), targets.to(device)
                 outputs = net(inputs)
-                loss = specLoader.criterion(outputs, targets)
+                loss = specLoader.cross_entropy_test(outputs, targets)
      
                 test_loss += loss.item()
                 _, predicted = outputs.max(1)
@@ -153,6 +157,7 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
 if __name__ == "__main__":
     specLoader = dataset.SpecLoader(path_to_dataset, cfg)
     specLoader.prepare_data_single()
+    data = specLoader.data
     if cfg.load_latest_teacher:
         net_teacher, best_acc, start_epoch, optimizer, scheduler = load_teacher()
         if cfg.train_teacher and args.resume:
@@ -176,11 +181,10 @@ if __name__ == "__main__":
         print("training student loop {}".format(rt_lp))
          
         specLoader = dataset.SpecLoader(path_to_dataset, cfg)
-        specLoader.gen_pseudolabels(net_teacher)
+        specLoader.gen_pseudolabels(net_teacher, data, rt_lp)
+        net_student, optimizer, scheduler = create_network()
          
-        net_teacher, optimizer = create_network()
-         
-        train(specLoader, net_student, optimizer, fun="student", rt_lp=rt_lp, start_epoch=0, best_acc=0)
+        train(specLoader, net_student, optimizer, scheduler, fun="student", rt_lp=rt_lp, start_epoch=0, best_acc=0)
          
         net_teacher = load_student_as_new_teacher(rt_lp)
         
