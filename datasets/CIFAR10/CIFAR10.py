@@ -238,6 +238,14 @@ class SpecLoader():
                 print("processing batch {}".format(batch_idx))
             #if batch_idx == 200:
             #    break
+            #for each samples in batch:
+            #    cuda_tensor = []
+            #    for i in range(num augmentations)
+            #          cuda_tensor.append(augment(sample))
+            #    with torch.no_grad():
+            #        outputs = model(cuda_tensor)
+            #    takeornottake(outputs)
+            
             inputs = batch["input"]
             label = batch['label']
             labelled = batch['labelled']
