@@ -59,8 +59,9 @@ def create_network():
 
 def load_teacher():
     net_teacher, _, _ = create_network()
-    checkpoint = torch.load('{}/checkpoint_teacher/ckpt_loop_0_perc_{}.pth'.format(path_to_dataset,
-                                                                                    cfg.training_split_percentage))
+    filename = '{}/checkpoint_teacher/ckpt_loop_0_perc_{}.pth'.format(path_to_dataset,
+                                                                                    cfg.training_split_percentage)
+    checkpoint = torch.load(filename)
     net_teacher.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
