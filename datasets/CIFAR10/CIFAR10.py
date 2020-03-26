@@ -83,6 +83,28 @@ class MiniDatasetLoader(Dataset):
     def __len__(self):
         return len(self.data)
 
+
+class MiniAugmentedDatasetLoader(Dataset):
+    def __init__(self, data, transformation, n_augmentations):
+        self.data = data
+        self.tranformation = transformation
+        self.n_augments = n_augmentations
+
+    def __getitem__(self, index):
+        true_index = int(index/self.n_augments)
+        data = self.data[true_index]
+        element = {
+            "input": self.transformation(data["input"]),
+            "label": data["label"], 
+            "labelled": data["labelled"],
+            "index": data["index"]
+        }
+        return element
+
+    def __len__(self):
+        return self.n_augments*len(self.data)
+
+
 class SPLoss(nn.Module):
     def __init__(self):
         super(SPLoss, self).__init__()
@@ -140,7 +162,15 @@ class SpecLoader():
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
-            
+
+        self.transform_data_distill = transforms.Compose([
+            #TODO: Make more informed decision about new size
+            transforms.Resize([400,1200], interpolation=2)
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
     def generate_split_for_teacher(self):
         assert self.train_set, "No train set object has been assigned yet. Call prepare_data_single first"
         training_split_percentage = self.cfg.training_split_percentage
@@ -225,7 +255,12 @@ class SpecLoader():
         data = []
         i = 0
         print("Generating pseudolabels for retrain iteration {}..".format(rt_lp))
-        miniloader = MiniDatasetLoader(data_orig, self.transform_train)
+
+        n_augments = 10
+        miniloader = MiniAugmentedDatasetLoader(data_orig,self.transform_data_distill, n_augments)
+        #miniloader = MiniDatasetLoader(data_orig, self.transform_train)
+        
+        # TODO: Fix batch size so that we don't split up augmentations from the same sample
         minibatchsize = 32
         mini_batch_generator = DataLoader(miniloader, 
                                           batch_size=minibatchsize, 
@@ -259,14 +294,19 @@ class SpecLoader():
                 outputs = model(inputs_cuda)
             del inputs_cuda
             outputs = outputs.detach().cpu().numpy()
-            for i in range(inputs.shape[0]):
+            # TODO: Make sure below line works with shape of outputs
+            avg_outputs = np.mean(outputs.reshape((minibatchsize/n_augments,n_augments)),axis=1)
+
+            #for i in range(inputs.shape[0]):
+            for i in range(avg_outputs.shape[0]):
+                true_i = i*n_augments
                 tmp = {
-                    'labelled':labelled[i],
-                    'index': index[i],
-                    'input': inputs[i]
+                    'labelled':labelled[true_i],
+                    'index': index[true_i],
+                    'input': inputs[true_i]
                 }
-                tmp['label'] = label[i]
-                tmp['cont_label'] = outputs[i]
+                tmp['label'] = label[true_i]
+                tmp['cont_label'] = avg_outputs[i]
                 data.append(tmp)
                 #===============================================================
                 # print(type(tmp["input"]))
