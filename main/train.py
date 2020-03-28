@@ -30,7 +30,7 @@ cfg = config.Config
 architecture, type = cfg.net_arch.rsplit(".", 1)
 arch = importlib.import_module(architecture)
 network = getattr(arch, type)
- 
+
 path_to_dataset = os.path.join(cfg.dataset_dir, cfg.dataset)
 dataset = importlib.import_module(cfg.dataset)
  
@@ -77,8 +77,10 @@ def get_latest_starting_model_params(mypath):
     
 
 def load_student_as_new_teacher(index):
-    net_teacher, optimizer = create_network()
-    checkpoint = torch.load('{}/checkpoint_student/ckpt_loop_{}.pth'.format(path_to_dataset, index))
+    net_teacher, optimizer, scheduler = create_network()
+    checkpoint = torch.load('{}/checkpoint_student/ckpt_loop_{}_perc_{}.pth'.format(path_to_dataset, 
+                                                                                    index, 
+                                                                                    cfg.training_split_percentage))
     net_teacher.load_state_dict(checkpoint['net'])
     return net_teacher
 
@@ -88,6 +90,10 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
     cudnn.deterministic = False
     cudnn.enabled = True
     print("Start epoch {}".format(start_epoch))
+    train_losses = []
+    train_accuracies = []
+    test_losses = []
+    test_accuracies = []
     for epoch in range(start_epoch, cfg.num_epochs):
         print('\nEpoch: %d' % epoch)
         scheduler.step() 
@@ -118,6 +124,8 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
             progress_bar(batch_idx, len(specLoader.batch_generator), 'Loss: %.3f | Acc: %.3f%% (%d/%d) | lr: %f'
                 % (train_loss/(batch_idx+1), 100.*correct/total, correct, total, scheduler.get_lr()[0]))
         
+        train_losses.append(train_loss/(batch_idx+1))
+        train_accuracies.append(100.*correct/total)
         test_loss = 0
         correct = 0
         total = 0                       
@@ -138,6 +146,8 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
      
         # Save checkpoint.
         acc = 100.*correct/total
+        test_losses.append(test_loss/(batch_idx+1))
+        test_accuracies.append(100.*correct/total)
         if acc > best_acc:
             print('Saving..')
             state = {
@@ -151,7 +161,8 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
                 os.mkdir('checkpoint')                
             torch.save(state, '{}/checkpoint_{}/ckpt_loop_{}_perc_{}.pth'.format(path_to_dataset, fun, rt_lp, cfg.training_split_percentage))
             best_acc = acc
-                 
+    return train_losses, test_losses, train_accuracies, test_accuracies 
+
         ## NEED TO RECREATE PSEUDOLABELS FROM NEW STUDENT MODEL
 
 if __name__ == "__main__":
@@ -161,31 +172,62 @@ if __name__ == "__main__":
     if cfg.load_latest_teacher:
         net_teacher, best_acc, start_epoch, optimizer, scheduler = load_teacher()
         if cfg.train_teacher and args.resume:
-            train(specLoader,
-                  net_teacher, 
-                  optimizer,
-                  scheduler,
-                  fun="teacher", 
-                  rt_lp=0, 
-                  start_epoch=start_epoch, 
-                  best_acc=best_acc)
+            rt_lp = 0
+            train_losses, test_losses, train_accuracies, test_accuracies  = train(specLoader,
+                                                                                  net_teacher, 
+                                                                                  optimizer,
+                                                                                  scheduler,
+                                                                                  fun="teacher", 
+                                                                                  rt_lp=0, 
+                                                                                  start_epoch=start_epoch, 
+                                                                                  best_acc=best_acc)
+
+            np.save('train_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_losses)
+            np.save('test_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_losses)
+            np.save('train_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_accuracies)
+            np.save('test_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_accuracies)   
+    
     else:
         net_teacher, optimizer, scheduler = create_network()
-        train(specLoader, net_teacher, optimizer, scheduler, fun="teacher", rt_lp=0, start_epoch=0, best_acc=0)
-       
+        rt_lp = 0
+        train_losses, test_losses, train_accuracies, test_accuracies  = train(specLoader, 
+                                                                              net_teacher, 
+                                                                              optimizer, 
+                                                                              scheduler, 
+                                                                              fun="teacher", 
+                                                                              rt_lp=0, 
+                                                                              start_epoch=0, 
+                                                                              best_acc=0)
+    
+        np.save('train_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_losses)
+        np.save('test_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_losses)
+        np.save('train_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_accuracies)
+        np.save('test_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_accuracies)
+         
     print("Loaded teacher network")
     max_retrain_loop = cfg.max_retrain_loop
     if cfg.train_teacher:
         max_retrain_loop = 0
     for rt_lp in range(max_retrain_loop):
-        print("training student loop {}".format(rt_lp))
-         
+        print("============== training student loop {} ==========".format(rt_lp))      
         specLoader = dataset.SpecLoader(path_to_dataset, cfg)
         specLoader.gen_pseudolabels(net_teacher, data, rt_lp)
         net_student, optimizer, scheduler = create_network()
          
-        train(specLoader, net_student, optimizer, scheduler, fun="student", rt_lp=rt_lp, start_epoch=0, best_acc=0)
-         
+        train_losses, test_losses, train_accuracies, test_accuracies  = train(specLoader, 
+                                                                              net_student, 
+                                                                              optimizer, 
+                                                                              scheduler, 
+                                                                              fun="student", 
+                                                                              rt_lp=rt_lp, 
+                                                                              start_epoch=0, 
+                                                                              best_acc=0)
+
+        np.save('train_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_losses)
+        np.save('test_losses_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_losses)
+        np.save('train_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), train_accuracies)
+        np.save('test_accuracies_ckpt_loop_{}_perc_{}.pth'.format(rt_lp, cfg.training_split_percentage), test_accuracies)
+             
         net_teacher = load_student_as_new_teacher(rt_lp)
         
         

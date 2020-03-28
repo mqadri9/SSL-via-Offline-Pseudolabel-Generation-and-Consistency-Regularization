@@ -18,10 +18,11 @@ DATASET_NAME = "CIFAR10"
 device = 'cuda' if torch.cuda.is_available() else 'cpu' 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 class DatasetLoader(Dataset):
-    def __init__(self, data, cfg, path_to_dataset, transformation, already_transformed=False):
+    def __init__(self, data, cfg, path_to_dataset, transformation, already_transformed=False, multiplicative=1):
         print("Inside custom DatasetLoader")
         self.total_num_examples = 0
         self.cfg = cfg
+        self.multiplicative = multiplicative
         self.transforms = transformation
         self.already_transformed = already_transformed
         self.data = data
@@ -57,13 +58,14 @@ class DatasetLoader(Dataset):
             "index": data["index"],
             "cont_label": data["cont_label"]
         }
+        #print("element is {}".format(element))
         
         return element
     
     def __len__(self):
         if self.cfg.labelled_selection_prob == 100:
             return self.num_labelled
-        return len(self.data)
+        return len(self.data)*self.multiplicative
 
 class MiniDatasetLoader(Dataset):
     def __init__(self, data, transformation):
@@ -87,7 +89,7 @@ class MiniDatasetLoader(Dataset):
 class MiniAugmentedDatasetLoader(Dataset):
     def __init__(self, data, transformation, n_augmentations):
         self.data = data
-        self.tranformation = transformation
+        self.transformation = transformation
         self.n_augments = n_augmentations
 
     def __getitem__(self, index):
@@ -113,17 +115,37 @@ class SPLoss(nn.Module):
         #print(labelled)
         pred_labelled = predictions[labelled]
         gt_labelled = gt[labelled]
-        #print(pred_labelled.shape)
+        #print('labelled {}'.format(pred_labelled.shape))
+
         #print(gt_labelled.shape)
         pred_unlabelled = predictions[~labelled]
         gt_unlabelled = gt_cont[~labelled]        
-        #print(pred_unlabelled.shape)
-        #print(gt_unlabelled.shape)        
+        #print('unlabelled {}'.format(gt_unlabelled.shape))
+        #print(gt_unlabelled.shape)
         cross_entropy = nn.CrossEntropyLoss()
         labelled_loss = cross_entropy(pred_labelled, gt_labelled)
         num_unlabelled = gt_unlabelled.shape[0]
-        unlabelled_loss = torch.abs(pred_unlabelled - gt_unlabelled).sum()/num_unlabelled
-        
+        if num_unlabelled == 0:
+            unlabelled_loss = 0
+        else:
+            #print(pred_unlabelled.shape)
+            #print(gt_unlabelled.shape)
+           
+            #diff = (pred_unlabelled - gt_unlabelled)**2
+            #diff2 = torch.abs(pred_unlabelled - gt_unlabelled)
+            #print(pred_unlabelled.requires_grad)
+            #print(diff.shape)
+            #print(diff2.shape)
+            #print(diff.sum())
+            #print(diff2.sum())
+            #print(num_unlabelled)
+            #unlabelled_loss = nn.MSELoss(pred_unlabelled, gt_unlabelled) 
+            #unlabelled_loss = diff.sum()/num_unlabelled
+            #unlabelled_loss = torch.abs(pred_unlabelled - gt_unlabelled).sum()/num_unlabelled
+            #loss_fn = torch.nn.MSELoss(reduce='mean')
+            #unlabelled_loss = loss_fn(pred_unlabelled, gt_unlabelled) 
+            unlabelled_loss = torch.pow(pred_unlabelled - gt_unlabelled, 2).mean()
+            #sys.exit()
         #print("labelled loss {}".format(labelled_loss))
         #print("unlabelled loss {}".format(unlabelled_loss))
         lam = cfg.balancing_factor
@@ -152,6 +174,7 @@ class SpecLoader():
         ])
 
         self.transform_train = transforms.Compose([
+            transforms.RandomRotation(40),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -165,7 +188,8 @@ class SpecLoader():
 
         self.transform_data_distill = transforms.Compose([
             #TODO: Make more informed decision about new size
-            transforms.Resize([400,1200], interpolation=2)
+            transforms.RandomRotation(40),
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -255,12 +279,173 @@ class SpecLoader():
         data = []
         i = 0
         print("Generating pseudolabels for retrain iteration {}..".format(rt_lp))
-
+#===============================================================================
+#         self.trainset_loader = DatasetLoader(data_orig, self.cfg, self.path_to_dataset, self.transform_train)
+# 
+#         self.batch_generator = DataLoader(self.trainset_loader, 
+#                                           batch_size=self.cfg.batch_size, 
+#                                           shuffle=True, 
+#                                           num_workers=self.cfg.num_workers, 
+#                                           pin_memory=True)
+#                 
+#         print("batch_size = {}".format(self.cfg.batch_size))
+#         self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+#         
+#         self.criterion = SPLoss()   
+#         self.cross_entropy_test = nn.CrossEntropyLoss()
+#         return
+#===============================================================================
         n_augments = 10
-        miniloader = MiniAugmentedDatasetLoader(data_orig,self.transform_data_distill, n_augments)
+
+        miniloader = MiniAugmentedDatasetLoader(data_orig, self.transform_data_distill, n_augments)
         #miniloader = MiniDatasetLoader(data_orig, self.transform_train)
         
         # TODO: Fix batch size so that we don't split up augmentations from the same sample
+        minibatchsize = 50
+        mini_batch_generator = DataLoader(miniloader, 
+                                          batch_size=minibatchsize, 
+                                          shuffle=False, 
+                                          num_workers=2, 
+                                          pin_memory=True)
+        data = []
+        sum_variance_error = 0
+        sum_variance_correct = 0
+        variances_correct = []
+        variances_incorrect = []
+        num_correct = 0
+        num_incorrect = 0
+        for batch_idx, batch in enumerate(mini_batch_generator):
+            if batch_idx % 1000 == 0:
+                print("processing batch {}".format(batch_idx))
+            inputs = batch["input"]
+            label = batch['label']
+            labelled = batch['labelled']
+            index = batch['index']
+            #print(index)
+            #===================================================================
+            # transform = transforms.Compose([
+            #     transforms.ToPILImage(),
+            #     transforms.Resize(size=128),
+            #     transforms.ToTensor(),
+            # ])
+            # ips = [transform(x_) for x_ in inputs]
+            # torchvision.utils.save_image(ips, 'test.png', nrow=4)
+            #===================================================================
+            inputs_cuda = inputs.to(device)
+            inputs = inputs.detach().cpu().numpy()
+            label = label.detach().cpu().numpy()
+            labelled = labelled.detach().cpu().numpy()
+            index = index.detach().cpu().numpy()
+            with torch.no_grad():
+                outputs = model(inputs_cuda)
+            del inputs_cuda
+            outputs = outputs.detach().cpu().numpy()
+            #continue
+            # avg_outputs = np.mean(outputs.reshape((minibatchsize/n_augments,n_augments)),axis=1)
+
+            #for i in range(inputs.shape[0]):
+            #print(outputs.shape[0])
+            for true_i in range(0, minibatchsize, n_augments):
+                take = True
+                orig_index = index[true_i]
+                sample = data_orig[orig_index]
+                assert sample['index'] == orig_index
+                assert sample['labelled'] == labelled[true_i]
+                assert sample['label'] == label[true_i]
+                tmp = {
+                    'labelled': sample['labelled'],
+                    'index': sample['index'],
+                    'input': sample['input']
+                }
+                tmp['label'] = sample['label']
+                #print(tmp['label'])
+                #print(outputs[true_i:true_i+n_augments])
+                if tmp['labelled']:
+                    tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
+                else:
+                    conf_meas = CondifenceMeasure()
+                    take, variances, one_hot_pseudolabel, pseudolabel = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
+                                                                                  label=tmp['label'])
+                    tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
+                    if one_hot_pseudolabel != tmp['label']:
+                        num_incorrect += 1
+                        variances_incorrect.append(variances)
+                        sum_variance_error += variances
+                    else:
+                        num_correct += 1
+                        variances_correct.append(variances)
+                        sum_variance_correct += variances
+                if take:
+                    data.append(tmp)
+                
+            #if batch_idx > 2000:
+            #    break
+                #sys.exit()
+                #===============================================================
+                # print(type(tmp["input"]))
+                # print(type(tmp["label"]))
+                # print(type(tmp["labelled"]))
+                # print(type(tmp["index"]))
+                # sys.exit()
+                #===============================================================
+        variances_incorrect = np.array(variances_incorrect)
+        variances_correct = np.array(variances_correct)
+        print("average correct variance")
+        print(np.mean(variances_correct))
+        print(np.std(variances_correct))
+        print("average incorrect variance")
+        print(np.mean(variances_incorrect))
+        print(np.std(variances_incorrect))
+        print("Statistics")
+        print(np.array(data).shape)
+        print(num_correct)
+        print(num_incorrect)
+        
+        #for d in data:
+        #    print("============================")
+        #    for k in d:
+        #        print("k {}   || type(k) {}".format(k, type(d[k])))
+                
+        #=======================================================================
+        # self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, already_transformed=True)
+        # 
+        # self.batch_generator = DataLoader(self.trainset_loader, 
+        #                                   batch_size=self.cfg.batch_size, 
+        #                                   shuffle=True, 
+        #                                   num_workers=self.cfg.num_workers, 
+        #                                   pin_memory=True)
+        #=======================================================================
+        #data = data[0:4999]
+          
+        self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=10)
+
+        self.batch_generator = DataLoader(self.trainset_loader, 
+                                          batch_size=self.cfg.batch_size, 
+                                          shuffle=True, 
+                                          num_workers=self.cfg.num_workers, 
+                                          pin_memory=True)
+        
+        self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+        
+        self.criterion = SPLoss()   
+        self.cross_entropy_test = nn.CrossEntropyLoss()
+    
+
+    def gen_pseudolabels2(self, model, data_orig, rt_lp):
+        
+        print("generated pseudolabels")
+        
+        self.testset = torchvision.datasets.CIFAR10(root='{}/data'.format(self.path_to_dataset), train=False, download=True, transform=self.transformation)
+        self.testloader = torch.utils.data.DataLoader(self.testset, 
+                                                      batch_size=self.cfg.batch_size, 
+                                                      shuffle=False, 
+                                                      num_workers=self.cfg.num_workers)
+
+        model.eval()
+        data = []
+        i = 0
+        print("Generating pseudolabels for retrain iteration {}..".format(rt_lp))
+        miniloader = MiniDatasetLoader(data_orig, self.transform_train)
         minibatchsize = 32
         mini_batch_generator = DataLoader(miniloader, 
                                           batch_size=minibatchsize, 
@@ -273,14 +458,6 @@ class SpecLoader():
                 print("processing batch {}".format(batch_idx))
             #if batch_idx == 200:
             #    break
-            #for each samples in batch:
-            #    cuda_tensor = []
-            #    for i in range(num augmentations)
-            #          cuda_tensor.append(augment(sample))
-            #    with torch.no_grad():
-            #        outputs = model(cuda_tensor)
-            #    takeornottake(outputs)
-            
             inputs = batch["input"]
             label = batch['label']
             labelled = batch['labelled']
@@ -294,19 +471,14 @@ class SpecLoader():
                 outputs = model(inputs_cuda)
             del inputs_cuda
             outputs = outputs.detach().cpu().numpy()
-            # TODO: Make sure below line works with shape of outputs
-            avg_outputs = np.mean(outputs.reshape((minibatchsize/n_augments,n_augments)),axis=1)
-
-            #for i in range(inputs.shape[0]):
-            for i in range(avg_outputs.shape[0]):
-                true_i = i*n_augments
+            for i in range(inputs.shape[0]):
                 tmp = {
-                    'labelled':labelled[true_i],
-                    'index': index[true_i],
-                    'input': inputs[true_i]
+                    'labelled':labelled[i],
+                    'index': index[i],
+                    'input': inputs[i]
                 }
-                tmp['label'] = label[true_i]
-                tmp['cont_label'] = avg_outputs[i]
+                tmp['label'] = label[i]
+                tmp['cont_label'] = outputs[i]
                 data.append(tmp)
                 #===============================================================
                 # print(type(tmp["input"]))
@@ -315,7 +487,7 @@ class SpecLoader():
                 # print(type(tmp["index"]))
                 # sys.exit()
                 #===============================================================
-                  
+        
         self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, already_transformed=True)
         
         self.batch_generator = DataLoader(self.trainset_loader, 
@@ -327,4 +499,3 @@ class SpecLoader():
         
         self.criterion = SPLoss()   
         self.cross_entropy_test = nn.CrossEntropyLoss()
-    

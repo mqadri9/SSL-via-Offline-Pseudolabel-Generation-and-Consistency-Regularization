@@ -18,14 +18,19 @@ class Config:
     model_dir = os.path.join(root_dir, 'models')
     dataset_dir = os.path.join(root_dir, 'datasets')
     
-    net_arch = "resnet.ResNet50"
+    net_arch = "resnet.ResNet18"
     dataset = "CIFAR10"
     lr = 0.1
     num_workers = 2
     batch_size = 64 #CIFAR 128
-    num_epochs = 80
-    lr_dec_epoch = [4, 15]
+    num_epochs = 50
+    lr_dec_epoch = [4, 15, 35]
     lr_dec_factor = 0.1
+    
+    # To train a student set train_teacher to True, load_latest_teacher to False
+    # set training_split_percentage to 100% to train on the entire labelled set
+    # else specify a specific training split
+    # Also need to set labelled_selection_prob to 1
     train_teacher = False
     load_latest_teacher = True
     max_retrain_loop = 3
