@@ -122,8 +122,12 @@ class SPLoss(nn.Module):
         gt_unlabelled = gt_cont[~labelled]        
         #print('unlabelled {}'.format(gt_unlabelled.shape))
         #print(gt_unlabelled.shape)
-        cross_entropy = nn.CrossEntropyLoss()
-        labelled_loss = cross_entropy(pred_labelled, gt_labelled)
+        num_labelled = gt_labelled.shape[0]
+        if num_labelled == 0:
+            labelled_loss = 0
+        else:
+            cross_entropy = nn.CrossEntropyLoss()
+            labelled_loss = cross_entropy(pred_labelled, gt_labelled)
         num_unlabelled = gt_unlabelled.shape[0]
         if num_unlabelled == 0:
             unlabelled_loss = 0
@@ -174,7 +178,7 @@ class SpecLoader():
         ])
 
         self.transform_train = transforms.Compose([
-            transforms.RandomRotation(40),
+            #transforms.RandomRotation(40),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -188,7 +192,7 @@ class SpecLoader():
 
         self.transform_data_distill = transforms.Compose([
             #TODO: Make more informed decision about new size
-            transforms.RandomRotation(40),
+            #transforms.RandomRotation(40),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -417,7 +421,7 @@ class SpecLoader():
         #=======================================================================
         #data = data[0:4999]
           
-        self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=10)
+        self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=self.cfg.multiplicative)
 
         self.batch_generator = DataLoader(self.trainset_loader, 
                                           batch_size=self.cfg.batch_size, 

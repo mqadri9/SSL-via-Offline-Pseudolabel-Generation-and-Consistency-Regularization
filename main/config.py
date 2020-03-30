@@ -23,7 +23,7 @@ class Config:
     lr = 0.1
     num_workers = 2
     batch_size = 64 #CIFAR 128
-    num_epochs = 50
+    num_epochs = 200
     lr_dec_epoch = [4, 15, 35]
     lr_dec_factor = 0.1
     
@@ -33,10 +33,11 @@ class Config:
     # Also need to set labelled_selection_prob to 1
     train_teacher = False
     load_latest_teacher = True
-    max_retrain_loop = 3
+    max_retrain_loop = 10
     training_split_percentage = 10 # percentage of the labelled data
     labelled_selection_prob = 0.5
     balancing_factor = 0.1
+    multiplicative = 1
     
     def set_args(self, gpu_ids, continue_train=False):
         self.gpu_ids = gpu_ids

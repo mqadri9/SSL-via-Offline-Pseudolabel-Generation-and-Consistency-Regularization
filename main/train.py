@@ -208,7 +208,9 @@ if __name__ == "__main__":
     max_retrain_loop = cfg.max_retrain_loop
     if cfg.train_teacher:
         max_retrain_loop = 0
-    for rt_lp in range(max_retrain_loop):
+    
+    #net_teacher = load_student_as_new_teacher(3)
+    for rt_lp in range(0, max_retrain_loop):
         print("============== training student loop {} ==========".format(rt_lp))      
         specLoader = dataset.SpecLoader(path_to_dataset, cfg)
         specLoader.gen_pseudolabels(net_teacher, data, rt_lp)
