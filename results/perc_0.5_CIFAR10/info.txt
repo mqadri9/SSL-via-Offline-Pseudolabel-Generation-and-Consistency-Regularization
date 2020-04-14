@@ -1,0 +1,22 @@
+---------------Experiment Info---------------
+Dataset: CIFAR10
+Labeled samples: 250 (0.5%)
+Architecture: Resnet18
+
+--------------In \teacher---------
+Date trained: April 13, 2020
+Config info:
+ - lr = 0.01
+ - num_epochs = 500
+ - lr_dec_epoch = [40, 150, 350]
+ - lr_dec_factor = 0.1
+
+Files:
+ - the config file used for training teacher
+ - training and testing accuracies and losses
+
+-------------In \outputs----------
+Date: April 13, 2020
+Files:
+ - outputs from trained teacher 
+ - labels associated with data used to obtain teacher outputs
