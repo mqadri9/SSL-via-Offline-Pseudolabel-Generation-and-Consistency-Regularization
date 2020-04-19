@@ -14,6 +14,9 @@ from common import CondifenceMeasure
 from torch.utils.data import DataLoader
 import random
 
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 DATASET_NAME = "CIFAR10"
 device = 'cuda' if torch.cuda.is_available() else 'cpu' 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -112,16 +115,10 @@ class SPLoss(nn.Module):
         super(SPLoss, self).__init__()
 
     def forward(self, gt, gt_cont, predictions, labelled, cfg):
-        #print(labelled)
         pred_labelled = predictions[labelled]
         gt_labelled = gt[labelled]
-        #print('labelled {}'.format(pred_labelled.shape))
-
-        #print(gt_labelled.shape)
         pred_unlabelled = predictions[~labelled]
         gt_unlabelled = gt_cont[~labelled]        
-        #print('unlabelled {}'.format(gt_unlabelled.shape))
-        #print(gt_unlabelled.shape)
         num_labelled = gt_labelled.shape[0]
         if num_labelled == 0:
             labelled_loss = 0
@@ -132,29 +129,9 @@ class SPLoss(nn.Module):
         if num_unlabelled == 0:
             unlabelled_loss = 0
         else:
-            #print(pred_unlabelled.shape)
-            #print(gt_unlabelled.shape)
-           
-            #diff = (pred_unlabelled - gt_unlabelled)**2
-            #diff2 = torch.abs(pred_unlabelled - gt_unlabelled)
-            #print(pred_unlabelled.requires_grad)
-            #print(diff.shape)
-            #print(diff2.shape)
-            #print(diff.sum())
-            #print(diff2.sum())
-            #print(num_unlabelled)
-            #unlabelled_loss = nn.MSELoss(pred_unlabelled, gt_unlabelled) 
-            #unlabelled_loss = diff.sum()/num_unlabelled
-            #unlabelled_loss = torch.abs(pred_unlabelled - gt_unlabelled).sum()/num_unlabelled
-            #loss_fn = torch.nn.MSELoss(reduce='mean')
-            #unlabelled_loss = loss_fn(pred_unlabelled, gt_unlabelled) 
             unlabelled_loss = torch.pow(pred_unlabelled - gt_unlabelled, 2).mean()
-            #sys.exit()
-        #print("labelled loss {}".format(labelled_loss))
-        #print("unlabelled loss {}".format(unlabelled_loss))
         lam = cfg.balancing_factor
         loss = labelled_loss + lam*unlabelled_loss
-        #print("totol_loss: {}".format(loss))
         return loss
 
 class CustomCrossEntropyLoss(nn.Module):
@@ -255,7 +232,8 @@ class SpecLoader():
                 pk.dump(self.data, fid, pk.HIGHEST_PROTOCOL)
             print('{} samples read wrote {}'.format(len(self.data), cache_file))
         
-        self.trainset_loader = DatasetLoader(self.data, self.cfg, self.path_to_dataset, self.transform_train)
+        data2 = [x for x in self.data if x['labelled']]
+        self.trainset_loader = DatasetLoader(data2, self.cfg, self.path_to_dataset, self.transform_train)
 
         self.batch_generator = DataLoader(self.trainset_loader, 
                                           batch_size=self.cfg.batch_size, 
@@ -318,6 +296,8 @@ class SpecLoader():
         variances_incorrect = []
         num_correct = 0
         num_incorrect = 0
+        output_arr = []
+        target_arr = []
         for batch_idx, batch in enumerate(mini_batch_generator):
             if batch_idx % 1000 == 0:
                 print("processing batch {}".format(batch_idx))
@@ -368,6 +348,8 @@ class SpecLoader():
                     tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
                 else:
                     conf_meas = CondifenceMeasure()
+                    output_arr.append(outputs[true_i:true_i+n_augments])
+                    target_arr.append(tmp['label'])
                     take, variances, one_hot_pseudolabel, pseudolabel = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
                                                                                   label=tmp['label'])
                     tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
@@ -404,7 +386,8 @@ class SpecLoader():
         print(np.array(data).shape)
         print(num_correct)
         print(num_incorrect)
-        
+        np.save("output_arr_{}".format(rt_lp), output_arr)
+        np.save("target_arr{}".format(rt_lp), target_arr)
         #for d in data:
         #    print("============================")
         #    for k in d:

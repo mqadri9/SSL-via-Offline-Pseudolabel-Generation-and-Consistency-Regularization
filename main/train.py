@@ -15,14 +15,18 @@ import importlib
 from utils import progress_bar
 
 import parser
-
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    
 #===============================================================================
 parser = argparse.ArgumentParser(description='semi-supervised Training')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--path', '-p', help='path to model where to resume')
 args = parser.parse_args()
  
-device = 'cuda' if torch.cuda.is_available() else 'cpu' 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+print(device) 
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
  
@@ -102,6 +106,7 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
         total = 0
         iter = 0
         net.train()
+        print("here 3")
         for batch_idx, data in enumerate(specLoader.batch_generator):
             inputs = data["input"]
             targets = data['label']
@@ -169,6 +174,7 @@ if __name__ == "__main__":
     specLoader = dataset.SpecLoader(path_to_dataset, cfg)
     specLoader.prepare_data_single()
     data = specLoader.data
+    print("here 1")
     if cfg.load_latest_teacher:
         net_teacher, best_acc, start_epoch, optimizer, scheduler = load_teacher()
         if cfg.train_teacher and args.resume:
@@ -190,6 +196,7 @@ if __name__ == "__main__":
     else:
         net_teacher, optimizer, scheduler = create_network()
         rt_lp = 0
+        print("here 2")
         train_losses, test_losses, train_accuracies, test_accuracies  = train(specLoader, 
                                                                               net_teacher, 
                                                                               optimizer, 

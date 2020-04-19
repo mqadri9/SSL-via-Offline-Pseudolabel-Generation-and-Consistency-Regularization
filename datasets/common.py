@@ -9,7 +9,7 @@ import torch.backends.cudnn as cudnn
 
 import torchvision
 import torchvision.transforms as transforms
-
+import scipy.stats
 
 def softmax(X, theta = 1.0, axis = None):
     """
@@ -62,11 +62,13 @@ class CondifenceMeasure():
     def confidence_measure_1(self, reconstructions, label=None):
         #print(reconstructions.shape)
         #print("===================================================")
-        variances = np.min(np.var(reconstructions, axis=0))
+        out = softmax(reconstructions, axis=1)
+        #print(out.shape)
+        variances = np.min(np.var(out, axis=0))
         #print("variances")
         #print(variances)
         #print(reconstructions)
-        out = softmax(reconstructions, axis=1)
+        
         pseudolabel = np.mean(reconstructions, axis=0)
         #sys.exit()
         #print(pseudolabel)

@@ -12,30 +12,34 @@ def add_pypath(path):
 
 
 class Config:
-    trainset = ["CIFAR10"]
+    # trainset = ["CIFAR10"]
+    trainset = ["STL10"]
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, '..')
     model_dir = os.path.join(root_dir, 'models')
     dataset_dir = os.path.join(root_dir, 'datasets')
     
     net_arch = "resnet.ResNet18"
-    dataset = "CIFAR10"
+    # dataset = "CIFAR10"
+    dataset = "STL10"
     lr = 0.01
-    num_workers = 2
-    batch_size = 64 #CIFAR 128
-    num_epochs = 200
-    lr_dec_epoch = [40, 100]
+    num_workers = 1
+    batch_size = 16 #64 #CIFAR 128
+    num_epochs = 500
+    lr_dec_epoch = [40, 150, 350]
     lr_dec_factor = 0.1
     
+    # number of labelled sample that will not be used for trainign 
+    stats_samples_num = 250
     # To train a student set train_teacher to True, load_latest_teacher to False
     # set training_split_percentage to 100% to train on the entire labelled set
     # else specify a specific training split
     # Also need to set labelled_selection_prob to 1
-    train_teacher = False
-    load_latest_teacher = True
+    train_teacher = True
+    load_latest_teacher = False
     max_retrain_loop = 10
-    training_split_percentage = 0.5 # percentage of the labelled data
-    labelled_selection_prob = 0.5
+    training_split_percentage = 10 # percentage of the labelled data
+    labelled_selection_prob = 1
     balancing_factor = 0.1
     multiplicative = 1
     
