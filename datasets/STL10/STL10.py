@@ -53,8 +53,8 @@ class DatasetLoader(Dataset):
             data = self.data_unlabelled[idx]
         
         if not self.already_transformed:
-            print(data["input"])
-            print(type(data["input"]))
+            #print(data["input"])
+            #print(type(data["input"]))
             input = self.transforms(data["input"])
         else:
             input = data['input']
@@ -90,9 +90,9 @@ class SpecLoader():
         self.transform_train=transforms.Compose([
             #transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(30),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-            transforms.RandomRotation(30)
         ])
         
         self.transform_test = transforms.Compose([
@@ -146,7 +146,7 @@ class SpecLoader():
             print('{} samples read wrote {}'.format(len(self.data), cache_file))
           
         print("Number of training samples (labelled + unlabelled) {}".format(len(self.data)))
-        data2 = [x for x in self.data if x['labelled']]
+        data2 = [x for x in self.data if x['labelled']=="True"]
         self.trainset_loader = DatasetLoader(data2, self.cfg, self.path_to_dataset, self.transform_train)
 
         self.batch_generator = DataLoader(self.trainset_loader, 
@@ -163,3 +163,12 @@ class SpecLoader():
         
     def gen_pseudolabels(self):
         pass
+    
+    
+    
+    
+    
+    
+    
+    
+    

@@ -12,7 +12,7 @@ def add_pypath(path):
 
 
 class Config:
-    # trainset = ["CIFAR10"]
+    #trainset = ["CIFAR10"]
     trainset = ["STL10"]
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, '..')
@@ -20,11 +20,11 @@ class Config:
     dataset_dir = os.path.join(root_dir, 'datasets')
     
     net_arch = "resnet.ResNet18"
-    # dataset = "CIFAR10"
+    #dataset = "CIFAR10"
     dataset = "STL10"
     lr = 0.01
     num_workers = 1
-    batch_size = 16 #64 #CIFAR 128
+    batch_size = 16 #CIFAR 128
     num_epochs = 500
     lr_dec_epoch = [40, 150, 350]
     lr_dec_factor = 0.1
