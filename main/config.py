@@ -35,11 +35,11 @@ class Config:
     # set training_split_percentage to 100% to train on the entire labelled set
     # else specify a specific training split
     # Also need to set labelled_selection_prob to 1
-    train_teacher = True
-    load_latest_teacher = False
+    train_teacher = False
+    load_latest_teacher = True
     max_retrain_loop = 10
-    training_split_percentage = 10 # percentage of the labelled data
-    labelled_selection_prob = 1
+    training_split_percentage = "NA" # percentage of the labelled data
+    labelled_selection_prob = 0.5
     balancing_factor = 0.1
     multiplicative = 1
     
