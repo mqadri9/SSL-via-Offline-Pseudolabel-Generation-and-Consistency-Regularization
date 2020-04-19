@@ -62,9 +62,9 @@ class CondifenceMeasure():
     def confidence_measure_1(self, reconstructions, label=None):
         #print(reconstructions.shape)
         #print("===================================================")
-        out = softmax(reconstructions, axis=1)
+        #out = softmax(reconstructions, axis=1)
         #print(out.shape)
-        variances = np.min(np.var(out, axis=0))
+        variances = np.max(np.var(reconstructions, axis=0))
         #print("variances")
         #print(variances)
         #print(reconstructions)
@@ -78,7 +78,7 @@ class CondifenceMeasure():
         #print(np.argmax(pseudolabel))
         #print("label")
         #print(label)
-        if variances < 0.01:
+        if variances < 999:
             take = True
         else:
             take = False

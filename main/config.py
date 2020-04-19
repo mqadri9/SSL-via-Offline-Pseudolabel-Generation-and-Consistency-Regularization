@@ -23,10 +23,10 @@ class Config:
     #dataset = "CIFAR10"
     dataset = "STL10"
     lr = 0.01
-    num_workers = 1
+    num_workers = 2
     batch_size = 16 #CIFAR 128
-    num_epochs = 500
-    lr_dec_epoch = [40, 150, 350]
+    num_epochs = 250
+    lr_dec_epoch = [40, 150]
     lr_dec_factor = 0.1
     
     # number of labelled sample that will not be used for trainign 
