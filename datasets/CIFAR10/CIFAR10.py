@@ -350,7 +350,7 @@ class SpecLoader():
                     conf_meas = CondifenceMeasure()
                     output_arr.append(outputs[true_i:true_i+n_augments])
                     target_arr.append(tmp['label'])
-                    take, variances, one_hot_pseudolabel, pseudolabel = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
+                    take, variances, one_hot_pseudolabel, pseudolabel,_ = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
                                                                                   label=tmp['label'])
                     tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
                     if one_hot_pseudolabel != tmp['label']:

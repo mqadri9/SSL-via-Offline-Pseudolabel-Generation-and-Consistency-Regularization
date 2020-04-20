@@ -25,12 +25,12 @@ class Config:
     lr = 0.01
     num_workers = 2
     batch_size = 16 #CIFAR 128
-    num_epochs = 250
+    num_epochs = 70
     lr_dec_epoch = [40, 150]
     lr_dec_factor = 0.1
     
     # number of labelled sample that will not be used for trainign 
-    stats_samples_num = 250
+    stats_samples_num = 2000
     # To train a student set train_teacher to True, load_latest_teacher to False
     # set training_split_percentage to 100% to train on the entire labelled set
     # else specify a specific training split

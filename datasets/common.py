@@ -60,27 +60,37 @@ class CondifenceMeasure():
         pass
    
     def confidence_measure_1(self, reconstructions, label=None):
+        pseudolabel = np.mean(reconstructions, axis=0)
+        
+        
         #print(reconstructions.shape)
         #print("===================================================")
         #out = softmax(reconstructions, axis=1)
         #print(out.shape)
-        variances = np.max(np.var(reconstructions, axis=0))
-        #print("variances")
-        #print(variances)
-        #print(reconstructions)
+        #variances = np.min(np.var(reconstructions, axis=0))
+        #variances = np.max(np.var(reconstructions, axis=0))
+        #variances = np.var(reconstructions, axis=0)
+        #variances = scipy.stats.entropy(variances)
         
-        pseudolabel = np.mean(reconstructions, axis=0)
-        #sys.exit()
-        #print(pseudolabel)
-        #pseudolabel = reconstructions[0]
-        #print(pseudolabel.shape)
-        #print("pseudolabel")
-        #print(np.argmax(pseudolabel))
-        #print("label")
-        #print(label)
-        if variances < 999:
-            take = True
-        else:
+        #print(reconstructions)
+        maxes = np.argmax(reconstructions, axis=1)
+        #print("=======================================")
+        #print(maxes)
+        counts = np.bincount(maxes)
+        #print(counts)
+        count = np.argmax(counts)
+        #print(count)
+        mask = maxes == count
+        #print(mask)
+        variances = np.var(np.max(reconstructions[mask, :], axis=1))
+        #print(reconstructions[mask, :])
+        skip = False
+        if len(mask) < 10:
             take = False
-        #sys.exit()
-        return take, variances, np.argmax(pseudolabel), pseudolabel
+            skip = True
+        else:
+            if variances >=1.5:
+                take = True
+            else:
+                take = False
+        return take, variances, np.argmax(pseudolabel), pseudolabel, skip

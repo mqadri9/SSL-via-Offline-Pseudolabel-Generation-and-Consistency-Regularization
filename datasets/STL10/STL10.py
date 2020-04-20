@@ -295,12 +295,26 @@ class SpecLoader():
         
         print("generated pseudolabels")
         
-        self.testset = torchvision.datasets.STL10(root='{}/data'.format(self.path_to_dataset), split="test",  download=True, transform=self.transformation)
+        self.testset = torchvision.datasets.STL10(root='{}/data'.format(self.path_to_dataset), split="test",  download=True)
         self.testloader = torch.utils.data.DataLoader(self.testset, 
                                                       batch_size=self.cfg.batch_size, 
                                                       shuffle=False, 
                                                       num_workers=self.cfg.num_workers)
 
+        #=======================================================================
+        # datax = []
+        # for index, d in enumerate(self.testset):
+        #     element = {
+        #             "input": d[0],
+        #             "label": d[1], 
+        #             "index": index,
+        #             "cont_label": np.zeros((len(classes),))
+        #          }
+        #     element["labelled"] = "stats"
+        #     datax.append(element) 
+        # data_orig = datax
+        #=======================================================================
+        
         model.eval()
         data = []
         i = 0
@@ -319,6 +333,7 @@ class SpecLoader():
                                           num_workers=2, 
                                           pin_memory=True)
         data = []
+        all_variances = []
         sum_variance_error = 0
         sum_variance_correct = 0
         variances_correct = []
@@ -345,53 +360,62 @@ class SpecLoader():
             del inputs_cuda
             outputs = outputs.detach().cpu().numpy()
             for true_i in range(0, minibatchsize, n_augments):
-                take = True
-                orig_index = index[true_i]
-                sample = data_orig[orig_index]
-                assert sample['index'] == orig_index
-                assert sample['labelled'] == labelled[true_i]
-                assert sample['label'] == label[true_i]
-                tmp = {
-                    'index': sample['index'],
-                    'input': sample['input']
-                }
-                tmp['label'] = sample['label']
-                if sample['labelled'] == "True":
-                    tmp['labelled'] = True
-                    tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
-                elif sample["labelled"] == "stats":
-                    conf_meas = CondifenceMeasure()
-                    output_arr.append(outputs[true_i:true_i+n_augments])
-                    target_arr.append(tmp['label'])
-                    take, variances, one_hot_pseudolabel, pseudolabel = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
-                                                                                  label=tmp['label'])
-                    tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
-                    if one_hot_pseudolabel != tmp['label']:
-                        num_incorrect += 1
-                        variances_incorrect.append(variances)
-                        sum_variance_error += variances
-                        #print("{} | {}".format(variances, 0))
+                try:
+                    take = True
+                    orig_index = index[true_i]
+                    sample = data_orig[orig_index]
+                    assert sample['index'] == orig_index
+                    assert sample['labelled'] == labelled[true_i]
+                    assert sample['label'] == label[true_i]
+                    tmp = {
+                        'index': sample['index'],
+                        'input': sample['input']
+                    }
+                    tmp['label'] = sample['label']
+                    if sample['labelled'] == "True":
+                        tmp['labelled'] = True
+                        tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
+                    elif sample["labelled"] == "stats":
+                        conf_meas = CondifenceMeasure()
+                        output_arr.append(outputs[true_i:true_i+n_augments])
+                        target_arr.append(tmp['label'])
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
+                                                                                      label=tmp['label'])
+                        tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
+                        tmp['labelled'] = "stats"
+                        if not skip:
+                            if one_hot_pseudolabel != tmp['label']:
+                                num_incorrect += 1
+                                variances_incorrect.append(variances)
+                                sum_variance_error += variances
+                                #print("{} | {}".format(variances, 0))
+                            else:
+                                num_correct += 1
+                                variances_correct.append(variances)
+                                sum_variance_correct += variances   
+                                #print("{} | {}".format(variances, 1))            
                     else:
-                        num_correct += 1
-                        variances_correct.append(variances)
-                        sum_variance_correct += variances
+                        tmp['labelled'] = False
+                        conf_meas = CondifenceMeasure()
+                        output_arr.append(outputs[true_i:true_i+n_augments])
+                        target_arr.append(tmp['label'])
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
+                                                                                      label=tmp['label'])
+                        all_variances.append(variances)
+                        tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
+                except:
+                    pass
                         #print("{} | {}".format(variances, 1))
-                                           
-                else:
-                    tmp['labelled'] = False
-                    conf_meas = CondifenceMeasure()
-                    output_arr.append(outputs[true_i:true_i+n_augments])
-                    target_arr.append(tmp['label'])
-                    take, variances, one_hot_pseudolabel, pseudolabel = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
-                                                                                  label=tmp['label'])
-                    tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
-
                 if take:
                     data.append(tmp)
             #if batch_idx > 1000:
             #    break
         
-                
+        print("maximum variance")
+        print(np.mean(np.array(all_variances)))
+        print(np.min(np.array(all_variances)))
+        print(np.std(np.array(all_variances)))
+        print(np.max(np.array(all_variances)))        
         variances_incorrect = np.array(variances_incorrect)
         variances_correct = np.array(variances_correct)
         print("average correct variance")
@@ -444,8 +468,8 @@ class SpecLoader():
         self.testloader = torch.utils.data.DataLoader(self.testset, 
                                                       batch_size=self.cfg.batch_size, 
                                                       shuffle=False, 
-                                                      num_workers=self.cfg.num_workers)
-
+                                                      num_workers=self.cfg.num_workers)    
+                
         model.eval()
         data = []
         i = 0
