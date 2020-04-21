@@ -58,11 +58,22 @@ def softmax(X, theta = 1.0, axis = None):
 class CondifenceMeasure():
     def __init__(self):
         pass
-   
+    
+    def sharpen(self, pseudolabel, T=2):
+        sign = np.sign(pseudolabel)
+        num = np.power(np.abs(pseudolabel), 1/T)
+        denom = np.sum(num)
+        
+        pseudolabel = sign*num/denom
+        #print(pseudolabel)
+        
+        return pseudolabel
+    
+       
     def confidence_measure_1(self, reconstructions, prev_thresh, label=None):
         pseudolabel = np.mean(reconstructions, axis=0)
         
-        
+        pseudolabel = self.sharpen(pseudolabel)
         #print(reconstructions.shape)
         #print("===================================================")
         #out = softmax(reconstructions, axis=1)
