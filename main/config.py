@@ -25,8 +25,8 @@ class Config:
     lr = 0.01
     num_workers = 2
     batch_size = 16 #CIFAR 128
-    num_epochs = 70
-    lr_dec_epoch = [40, 150]
+    num_epochs = 120
+    lr_dec_epoch = [40, 80]
     lr_dec_factor = 0.1
     
     # number of labelled sample that will not be used for trainign 

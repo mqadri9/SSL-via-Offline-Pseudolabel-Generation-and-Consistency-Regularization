@@ -59,7 +59,7 @@ class CondifenceMeasure():
     def __init__(self):
         pass
    
-    def confidence_measure_1(self, reconstructions, label=None):
+    def confidence_measure_1(self, reconstructions, prev_thresh, label=None):
         pseudolabel = np.mean(reconstructions, axis=0)
         
         
@@ -82,14 +82,15 @@ class CondifenceMeasure():
         #print(count)
         mask = maxes == count
         #print(mask)
-        variances = np.var(np.max(reconstructions[mask, :], axis=1))
+        #mean = np.mean(np.max(reconstructions[mask, :], axis=1))
+        variances = np.var(np.max(reconstructions[mask, :], axis=1))#/mean
         #print(reconstructions[mask, :])
         skip = False
         if len(mask) < 10:
             take = False
             skip = True
         else:
-            if variances >=1.5:
+            if variances >= prev_thresh:
                 take = True
             else:
                 take = False

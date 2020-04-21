@@ -291,11 +291,14 @@ class SpecLoader():
         self.criterion = CustomCrossEntropyLoss()
         self.cross_entropy_test = nn.CrossEntropyLoss()   
         
-    def gen_pseudolabels(self, model, data_orig, rt_lp):
+    def gen_pseudolabels(self, model, data_orig, rt_lp, prev_thresh):
         
         print("generated pseudolabels")
         
-        self.testset = torchvision.datasets.STL10(root='{}/data'.format(self.path_to_dataset), split="test",  download=True)
+        self.testset = torchvision.datasets.STL10(root='{}/data'.format(self.path_to_dataset), 
+                                                  split="test",  
+                                                  download=True, 
+                                                  transform=self.transformation)
         self.testloader = torch.utils.data.DataLoader(self.testset, 
                                                       batch_size=self.cfg.batch_size, 
                                                       shuffle=False, 
@@ -360,7 +363,7 @@ class SpecLoader():
             del inputs_cuda
             outputs = outputs.detach().cpu().numpy()
             for true_i in range(0, minibatchsize, n_augments):
-                try:
+                #try:
                     take = True
                     orig_index = index[true_i]
                     sample = data_orig[orig_index]
@@ -379,7 +382,7 @@ class SpecLoader():
                         conf_meas = CondifenceMeasure()
                         output_arr.append(outputs[true_i:true_i+n_augments])
                         target_arr.append(tmp['label'])
-                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
                                                                                       label=tmp['label'])
                         tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
                         tmp['labelled'] = "stats"
@@ -396,26 +399,30 @@ class SpecLoader():
                                 #print("{} | {}".format(variances, 1))            
                     else:
                         tmp['labelled'] = False
+                        m = np.mean(variances_correct)
+                        s = np.std(variances_correct)
+                        prev_thresh = m + (3*s)/(rt_lp+1)
                         conf_meas = CondifenceMeasure()
                         output_arr.append(outputs[true_i:true_i+n_augments])
                         target_arr.append(tmp['label'])
-                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], 
-                                                                                      label=tmp['label'])
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = conf_meas.confidence_measure_1(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
+                                                                                                                 label=tmp['label'])
                         all_variances.append(variances)
                         tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
-                except:
-                    pass
+                #except:
+                #    pass
                         #print("{} | {}".format(variances, 1))
-                if take:
-                    data.append(tmp)
-            #if batch_idx > 1000:
+                    if take:
+                        data.append(tmp)
+            #if batch_idx > 500:
             #    break
         
         print("maximum variance")
         print(np.mean(np.array(all_variances)))
         print(np.min(np.array(all_variances)))
         print(np.std(np.array(all_variances)))
-        print(np.max(np.array(all_variances)))        
+        print(np.max(np.array(all_variances)))
+        prev_thresh = np.mean(np.array(all_variances)) + 3*np.std(np.array(all_variances))
         variances_incorrect = np.array(variances_incorrect)
         variances_correct = np.array(variances_correct)
         print("average correct variance")
@@ -458,7 +465,7 @@ class SpecLoader():
         
         self.criterion = SPLoss()   
         self.cross_entropy_test = nn.CrossEntropyLoss()
-    
+        return prev_thresh
 
     def gen_pseudolabels2(self, model, data_orig, rt_lp):
         
