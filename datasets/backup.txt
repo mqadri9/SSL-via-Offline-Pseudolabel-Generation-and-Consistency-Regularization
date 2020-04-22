@@ -1,0 +1,36 @@
+        #=======================================================================
+        # pseudolabel = np.mean(reconstructions, axis=0)
+        # 
+        # pseudolabel = self.sharpen(pseudolabel)
+        # #print(reconstructions.shape)
+        # #print("===================================================")
+        # #out = softmax(reconstructions, axis=1)
+        # #print(out.shape)
+        # variances = np.min(np.var(reconstructions, axis=0))
+        # #variances = np.max(np.var(reconstructions, axis=0))
+        # #variances = np.var(reconstructions, axis=0)
+        # #variances = scipy.stats.entropy(variances)
+        # 
+        # #print(reconstructions)
+        # maxes = np.argmax(reconstructions, axis=1)
+        # #print("=======================================")
+        # #print(maxes)
+        # counts = np.bincount(maxes)
+        # #print(counts)
+        # count = np.argmax(counts)
+        # #print(count)
+        # mask = maxes == count
+        # #print(mask)
+        # #mean = np.mean(np.max(reconstructions[mask, :], axis=1))
+        # variances = np.var(np.max(reconstructions[mask, :], axis=1))#/mean
+        # #print(reconstructions[mask, :])
+        # skip = False
+        # if len(mask) < 10:
+        #     take = False
+        #     skip = True
+        # else:
+        #     if variances >= prev_thresh:
+        #         take = True
+        #     else:
+        #         take = False
+        #=======================================================================
