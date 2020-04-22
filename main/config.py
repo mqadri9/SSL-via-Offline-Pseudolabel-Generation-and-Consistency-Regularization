@@ -29,8 +29,9 @@ class Config:
     lr_dec_epoch = [40, 80]
     lr_dec_factor = 0.1
     
-    # number of labelled sample that will not be used for trainign 
-    stats_samples_num = 250
+    # number of labelled sample that will not be used for testing 
+    stats_samples_num = 1000
+    confidenceMeasure = "confidence_measure_2"
     # To train a student set train_teacher to True, load_latest_teacher to False
     # set training_split_percentage to 100% to train on the entire labelled set
     # else specify a specific training split
@@ -39,7 +40,7 @@ class Config:
     load_latest_teacher = True
     max_retrain_loop = 10
     training_split_percentage = "NA" # percentage of the labelled data
-    labelled_selection_prob = 0.3
+    labelled_selection_prob = 0.5
     balancing_factor = 0.1
     multiplicative = 1
     

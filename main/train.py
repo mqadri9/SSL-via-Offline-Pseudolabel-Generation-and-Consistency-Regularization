@@ -106,29 +106,46 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
         total = 0
         iter = 0
         net.train()
-        print("here 3")
         for batch_idx, data in enumerate(specLoader.batch_generator):
             inputs = data["input"]
             targets = data['label']
             cont_targets = data['cont_label']
-            #print(inputs.shape)
-            #print(targets.shape)
-            #print(cont_targets.shape)
             inputs, targets, cont_targets = inputs.to(device), targets.to(device), cont_targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
-            loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'], cfg)
+            print("======================================")
+            try:
+                data["labelled"] = data["labelled"].detach().cpu().numpy()
+            except:
+                pass
+            mask = [True if x == "True" or x == True else False for x in data['labelled']]
+            #print("=-=========================================")
+            #print(mask)
+            #print(data["labelled"])
+            #print(type(data["labelled"]))
+            #print(data["labelled"])
+            #data["labelled"] = data["labelled"].type(torch.ByteTensor)
+            #for x in data["labelled"]:
+             #   print(x)
+            #    x = x.type(torch.ByteTensor)
+              #  print(x.type)
+            #print(data["labelled"].shape)
+            #print(data["labelled"][0])
+            #data["labelled"] = data["labelled"] == 1
+            #print(data['labelled'][0])
+            loss = specLoader.criterion(targets, cont_targets, outputs, mask, cfg)
             loss.backward()
             optimizer.step()
      
+            
             train_loss += loss.item()
             _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
+            total += targets[mask].size(0)
+            correct += predicted[mask].eq(targets[mask]).sum().item()
             iter +=1
             progress_bar(batch_idx, len(specLoader.batch_generator), 'Loss: %.3f | Acc: %.3f%% (%d/%d) | lr: %f'
                 % (train_loss/(batch_idx+1), 100.*correct/total, correct, total, scheduler.get_lr()[0]))
-        
+        sys.exit()
         train_losses.append(train_loss/(batch_idx+1))
         train_accuracies.append(100.*correct/total)
         test_loss = 0
@@ -196,7 +213,7 @@ if __name__ == "__main__":
     else:
         net_teacher, optimizer, scheduler = create_network()
         rt_lp = 0
-        print("here 2")
+        #print("here 2")
         train_losses, test_losses, train_accuracies, test_accuracies  = train(specLoader, 
                                                                               net_teacher, 
                                                                               optimizer, 
@@ -215,10 +232,10 @@ if __name__ == "__main__":
     max_retrain_loop = cfg.max_retrain_loop
     if cfg.train_teacher:
         max_retrain_loop = 0
-    #prev_thresh = 4
-    prev_thresh = 0.32 + 3*0.295
-    net_teacher = load_student_as_new_teacher(4)
-    for rt_lp in range(5, max_retrain_loop):
+    prev_thresh = 4
+    #prev_thresh = 0.32 + 3*0.295
+    #net_teacher = load_student_as_new_teacher(4)
+    for rt_lp in range(0, max_retrain_loop):
         print("============== training student loop {} ==========".format(rt_lp))      
         specLoader = dataset.SpecLoader(path_to_dataset, cfg)
         prev_variance = specLoader.gen_pseudolabels(net_teacher, data, rt_lp, prev_thresh)
