@@ -240,6 +240,11 @@ class GenPseudolabel():
         self.transform_train = transform_train
         self.transform_data_distill = transform_data_distill
     
+    def get_svm_func(self, stat_portion):
+        print("inside_svm_fun. Length of stat_portion: {}".format(len(stat_portion)))
+        fun = None
+        return fun
+    
     def gen_pseudolabels(self, model, data_orig, rt_lp, prev_thresh, confidence_measure):
         model.eval()
         data = []
@@ -251,12 +256,21 @@ class GenPseudolabel():
         #miniloader = MiniDatasetLoader(data_orig, self.transform_train)
         
         # TODO: Fix batch size so that we don't split up augmentations from the same sample
-        minibatchsize = 150
+        minibatchsize = 50
         mini_batch_generator = DataLoader(miniloader, 
                                           batch_size=minibatchsize, 
                                           shuffle=False, 
                                           num_workers=2, 
                                           pin_memory=True)
+        
+        stat_portion = [x for x in data_orig if x["labelled"]=="stats"]
+        if len(stat_portion)>0:
+            fun = self.get_svm_func(stat_portion)
+            params = {"fun":fun}
+        else:
+            params = {}
+        
+        
         data = []
         all_variances = []
         sum_variance_error = 0
@@ -305,7 +319,7 @@ class GenPseudolabel():
                         output_arr.append(outputs[true_i:true_i+n_augments])
                         target_arr.append(tmp['label'])
                         take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
-                                                                                      label=tmp['label'])
+                                                                                                     label=tmp['label'], params=params)
                         tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
                         tmp['labelled'] = "stats"
                         take = False
@@ -325,7 +339,7 @@ class GenPseudolabel():
                         #prev_thresh = m + (3*s)/(rt_lp+1)
                         prev_thresh=0
                         take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
-                                                                                                                 label=tmp['label'])
+                                                                                                                 label=tmp['label'], params=params)
                         all_variances.append(variances)
                         tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
 
@@ -415,7 +429,7 @@ class ConfidenceMeasure():
         return pseudolabel
     
        
-    def confidence_measure_1(self, reconstructions, prev_thresh, label=None):
+    def confidence_measure_1(self, reconstructions, prev_thresh, label=None, params={}):
         variances = np.min(np.var(reconstructions, axis=0))
         pseudolabel = np.mean(reconstructions, axis=0)
         if variances < 0.01:
@@ -425,7 +439,7 @@ class ConfidenceMeasure():
         skip = False
         return take, variances, np.argmax(pseudolabel), pseudolabel, skip
 
-    def confidence_measure_2(self, reconstructions, prev_thresh, label=None):
+    def confidence_measure_2(self, reconstructions, prev_thresh, label=None, params={}):
         pseudolabel = np.mean(reconstructions, axis=0)
         
         #print(reconstructions.shape)
@@ -460,3 +474,7 @@ class ConfidenceMeasure():
             else:
                 take = False
         return take, variances, np.argmax(pseudolabel), pseudolabel, skip
+    
+    
+    
+    

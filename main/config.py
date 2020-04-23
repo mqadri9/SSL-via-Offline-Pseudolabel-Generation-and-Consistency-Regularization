@@ -22,11 +22,11 @@ class Config:
     net_arch = "resnet.ResNet18"
     dataset = "CIFAR10"
     #dataset = "STL10"
-    lr = 0.01
+    lr = 0.1
     num_workers = 2
     batch_size = 64 #16 #CIFAR 128
-    num_epochs = 120
-    lr_dec_epoch = [40, 80]
+    num_epochs = 450
+    lr_dec_epoch = [40, 150, 350]
     lr_dec_factor = 0.1
     
     # number of labelled sample that will not be used for testing 
@@ -40,7 +40,7 @@ class Config:
     load_latest_teacher = True
     max_retrain_loop = 10
     training_split_percentage = 10 # percentage of the labelled data
-    labelled_selection_prob = 1 
+    labelled_selection_prob = 0.5
     balancing_factor = 0.1
     multiplicative = 1
     

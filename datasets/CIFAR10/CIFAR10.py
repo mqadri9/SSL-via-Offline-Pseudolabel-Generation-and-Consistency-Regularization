@@ -73,7 +73,7 @@ class SpecLoader():
         training_split_percentage = int(self.cfg.training_split_percentage)
         total_num_samples = len(self.trainset)
         labelled_upper_bound = int(training_split_percentage*total_num_samples / 100)
-        cache_file = '{}_split_{}_percent_labelled.pkl'.format(DATASET_NAME, training_split_percentage)
+        cache_file = '{}_split_{}_percent_labelled_stats_{}.pkl'.format(DATASET_NAME, training_split_percentage, self.cfg.stats_samples_num)
         cache_file = os.path.join(self.path_to_dataset, "data", cache_file)
         # Check if we already have a pkl file saved for this split. If not regenerate the data
         if os.path.exists(cache_file):
@@ -107,7 +107,7 @@ class SpecLoader():
             #self.data = sorted(self.data, key = lambda i: i['labelled'], reverse=True)
             with open(cache_file, 'wb') as fid:
                 pk.dump(self.data, fid, pk.HIGHEST_PROTOCOL)
-            print('{} samples read wrote {}'.format(len(self.data), cache_file))
+            print('{} samples wrote {}'.format(len(self.data), cache_file))
         
         data2 = [x for x in self.data if x['labelled']=="True"]
         self.trainset_loader = DatasetLoader(data2, self.cfg, self.path_to_dataset, self.transform_train)
@@ -140,7 +140,7 @@ class SpecLoader():
         print("here")       
         data = PseudolabelGen.gen_pseudolabels(model, data_orig, rt_lp, prev_thresh, confidence_measure)
         print("here2")
-        self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=self.cfg.multiplicative)
+        self.trainset_loader = DatasetLoader2(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=self.cfg.multiplicative)
 
         self.batch_generator = DataLoader(self.trainset_loader, 
                                           batch_size=self.cfg.batch_size, 
