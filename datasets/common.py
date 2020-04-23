@@ -69,7 +69,6 @@ class DatasetLoader(Dataset):
         self.data = data
         condition_labelled = {"labelled": "True"}
         self.data_labelled = list(filter(lambda item: all((item[k]==v for (k,v) in condition_labelled.items())), self.data))
-        print(self.data_labelled[0]["input"])
         condition_unlabelled = {"labelled": "False"}
         self.data_unlabelled = list(filter(lambda item: all((item[k]==v for (k,v) in condition_unlabelled.items())), self.data))
         self.num_unlabelled = len(self.data_unlabelled)
@@ -205,32 +204,12 @@ class SPLoss(nn.Module):
         super(SPLoss, self).__init__()
 
     def forward(self, gt, gt_cont, predictions, labelled, cfg):
-        pred_labelled = []
-        gt_labelled = []
-        pred_unlabelled = []
-        gt_unlabelled = []
-        for i in range(len(labelled)):
-            if labelled[i] == True:
-                pred_labelled.append(predictions[i])
-                gt_labelled.append(gt[i])
-            else:
-                pred_unlabelled.append(predictions[i])
-                gt_unlabelled.append(gt[i])               
-        
-        #gt_labelled = np.array(gt_labelled)
-        #pred_labelled = np.array(pred_labelled)
-        #pred_unlabelled = np.array(pred_unlabelled)
-        #gt_unlabelled = np.array(gt_unlabelled)
-        #gt_labelled = torch.from_numpy(gt_labelled)
-        #pred_labelled = torch.from_numpy(pred_labelled)
-        #pred_unlabelled = torch.from_numpy(pred_unlabelled)
-        #gt_unlabelled = torch.from_numpy(gt_unlabelled)
-        #pred_labelled = predictions[labelled]
-        #gt_labelled = gt[labelled]
-        #pred_unlabelled = predictions[~labelled]
-        #gt_unlabelled = gt_cont[~labelled]        
-        #num_labelled = gt_labelled.shape[0]
-        num_labelled = len(gt_labelled)
+        #labelled = torch.where(labelled=="True", labelled)
+        pred_labelled = predictions[labelled]
+        gt_labelled = gt[labelled]
+        pred_unlabelled = predictions[~labelled]
+        gt_unlabelled = gt_cont[~labelled]
+        num_labelled = gt_labelled.shape[0]
         if num_labelled == 0:
             labelled_loss = 0
         else:
@@ -268,7 +247,6 @@ class GenPseudolabel():
         print("Generating pseudolabels for retrain iteration {}..".format(rt_lp))
         
         n_augments = 10
-
         miniloader = MiniAugmentedDatasetLoader(data_orig, self.transform_data_distill, n_augments)
         #miniloader = MiniDatasetLoader(data_orig, self.transform_train)
         
@@ -302,10 +280,12 @@ class GenPseudolabel():
             #labelled = labelled.detach().cpu().numpy()
             labelled = np.array(labelled)
             index = index.detach().cpu().numpy()
+
             with torch.no_grad():
                 outputs = model(inputs_cuda)
             del inputs_cuda
             outputs = outputs.detach().cpu().numpy()
+
             for true_i in range(0, minibatchsize, n_augments):
                     take = True
                     orig_index = index[true_i]
@@ -340,9 +320,10 @@ class GenPseudolabel():
                                 sum_variance_correct += variances   
                     else:
                         tmp['labelled'] = False
-                        m = np.mean(variances_correct)
-                        s = np.std(variances_correct)
-                        prev_thresh = m + (3*s)/(rt_lp+1)
+                        #m = np.mean(variances_correct)
+                        #s = np.std(variances_correct)
+                        #prev_thresh = m + (3*s)/(rt_lp+1)
+                        prev_thresh=0
                         take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
                                                                                                                  label=tmp['label'])
                         all_variances.append(variances)
@@ -350,9 +331,9 @@ class GenPseudolabel():
 
                     if take:
                         data.append(tmp)
-            if batch_idx > 400:
-                break
-        print(data)
+            #if batch_idx > 400:
+            #    break
+        
         print("maximum variance")
         print(np.mean(np.array(all_variances)))
         print(np.min(np.array(all_variances)))

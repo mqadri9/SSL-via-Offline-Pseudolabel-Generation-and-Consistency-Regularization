@@ -104,12 +104,12 @@ class SpecLoader():
                     }
                 self.data.append(element)
 
-            self.data = sorted(self.data, key = lambda i: i['labelled'], reverse=True)
+            #self.data = sorted(self.data, key = lambda i: i['labelled'], reverse=True)
             with open(cache_file, 'wb') as fid:
                 pk.dump(self.data, fid, pk.HIGHEST_PROTOCOL)
             print('{} samples read wrote {}'.format(len(self.data), cache_file))
         
-        data2 = [x for x in self.data if x['labelled']]
+        data2 = [x for x in self.data if x['labelled']=="True"]
         self.trainset_loader = DatasetLoader(data2, self.cfg, self.path_to_dataset, self.transform_train)
 
         self.batch_generator = DataLoader(self.trainset_loader, 
@@ -135,10 +135,11 @@ class SpecLoader():
                                                       num_workers=self.cfg.num_workers)
 
         confidence_measure = self.cfg.confidenceMeasure
-        confidence_measure = eval("CondifenceMeasure().{}".format(confidence_measure))
-        PseudolabelGen = GenPseudolabel(self.cfg, self.transform_train, self.transform_data_distill)          
+        confidence_measure = eval("ConfidenceMeasure().{}".format(confidence_measure))
+        PseudolabelGen = GenPseudolabel(self.cfg, self.transform_train, self.transform_data_distill)   
+        print("here")       
         data = PseudolabelGen.gen_pseudolabels(model, data_orig, rt_lp, prev_thresh, confidence_measure)
-          
+        print("here2")
         self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, multiplicative=self.cfg.multiplicative)
 
         self.batch_generator = DataLoader(self.trainset_loader, 

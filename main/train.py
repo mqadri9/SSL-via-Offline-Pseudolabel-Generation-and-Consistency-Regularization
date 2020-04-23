@@ -113,31 +113,16 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
             inputs, targets, cont_targets = inputs.to(device), targets.to(device), cont_targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
-            print("======================================")
+            #print(type(data['labelled']))
             try:
-                data["labelled"] = data["labelled"].detach().cpu().numpy()
+                loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'].byte(), cfg)
+                mask = [True if x.item() == "True" or x.item() == True else False for x in data['labelled']]
             except:
-                pass
-            mask = [True if x == "True" or x == True else False for x in data['labelled']]
-            #print("=-=========================================")
-            #print(mask)
-            #print(data["labelled"])
-            #print(type(data["labelled"]))
-            #print(data["labelled"])
-            #data["labelled"] = data["labelled"].type(torch.ByteTensor)
-            #for x in data["labelled"]:
-             #   print(x)
-            #    x = x.type(torch.ByteTensor)
-              #  print(x.type)
-            #print(data["labelled"].shape)
-            #print(data["labelled"][0])
-            #data["labelled"] = data["labelled"] == 1
-            #print(data['labelled'][0])
-            loss = specLoader.criterion(targets, cont_targets, outputs, mask, cfg)
+                loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'], cfg)
+                mask = [True if x == "True" or x == True else False for x in data['labelled']]
+            
             loss.backward()
             optimizer.step()
-     
-            
             train_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets[mask].size(0)
@@ -145,7 +130,7 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
             iter +=1
             progress_bar(batch_idx, len(specLoader.batch_generator), 'Loss: %.3f | Acc: %.3f%% (%d/%d) | lr: %f'
                 % (train_loss/(batch_idx+1), 100.*correct/total, correct, total, scheduler.get_lr()[0]))
-        sys.exit()
+        
         train_losses.append(train_loss/(batch_idx+1))
         train_accuracies.append(100.*correct/total)
         test_loss = 0
