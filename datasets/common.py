@@ -13,8 +13,19 @@ from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 import random
 import scipy.stats
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
+import pandas as pd
+import config_svm as config_svm
+import copy
+import pickle
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu' 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+cfg_svm = config_svm.Config_svm
+
 def softmax(X, theta = 1.0, axis = None):
     """
     Compute the softmax of each element along an axis of X.
@@ -240,10 +251,110 @@ class GenPseudolabel():
         self.transform_train = transform_train
         self.transform_data_distill = transform_data_distill
     
-    def get_svm_func(self, stat_portion):
+    def get_val_data(self,model,val_data):
+        n_augments = 10
+        miniloader = MiniAugmentedDatasetLoader(val_data, self.transform_data_distill, n_augments)
+        
+        minibatchsize = 50
+        mini_batch_generator = DataLoader(miniloader, 
+                                          batch_size=minibatchsize, 
+                                          shuffle=False, 
+                                          num_workers=2, 
+                                          pin_memory=True)
+        output_arr = []
+        target_arr = []
+        for batch_idx, batch in enumerate(mini_batch_generator):
+            #if batch_idx % 10 == 0:
+            #    print("processing batch {} from validation set".format(batch_idx))
+            inputs = batch["input"]
+            label = batch['label']
+            labelled = batch['labelled']
+            index = batch['index']
+            inputs_cuda = inputs.to(device)
+            inputs = inputs.detach().cpu().numpy()
+            label = label.detach().cpu().numpy()
+            #labelled = labelled.detach().cpu().numpy()
+            labelled = np.array(labelled)
+            index = index.detach().cpu().numpy()
+
+            with torch.no_grad():
+                outputs = model(inputs_cuda)
+            del inputs_cuda
+            outputs = outputs.detach().cpu().numpy()
+
+            for true_i in range(0, minibatchsize, n_augments):
+                output_arr.append(outputs[true_i:true_i+n_augments])
+                target_arr.append(labelled[true_i])
+
+        return output_arr, target_arr
+
+
+    def get_svm_func(self, stat_portion, model,rt_lp):
+
         print("inside_svm_fun. Length of stat_portion: {}".format(len(stat_portion)))
-        fun = None
-        return fun
+        teacher_outputs,real_labels = self.get_val_data(model,stat_portion)
+
+        # Featurize data
+        variances = np.var(teacher_outputs,axis=1)
+        means = np.mean(teacher_outputs,axis=1)
+        pseudolabels = np.argmax(means,axis=1)
+
+        # Create y by identifying correct and incorrect pseudos
+        y_lab = [1 if true == pseudolabels[idx] else 0 for idx,true in enumerate(real_labels)]
+        y_lab = np.asarray(y_lab)
+        perc_corr = 100*np.sum(y_lab)/len(y_lab)
+        print('Original validation set has {} samples'.format(len(y_lab)))
+        print('Percentage of correct pseudolabels: {:.1f}%'.format(perc_corr))
+
+        # Create dataframe of features and y vector
+        data = {}
+        for feature in cfg_svm.feature_list:
+            data[feature] = eval(cfg_svm.feature_funcs[feature])
+        
+        data['y'] = y_lab
+        df = pd.DataFrame(data)
+        
+        #df_all = copy.deepcopy(df)
+        #y_all = df_all['y']
+        #X_all = df_all.drop(columns=['y'])
+
+        # Get a sample of correct and incorrect pseudolabeled samples
+        g = df.groupby('y')
+        min_split_size = int(cfg_svm.min_size_of_val_set/2)
+        if g.size().min() < min_split_size:
+            val_set = g.apply(lambda x: x.sample(min_split_size))
+        else:
+            val_set = g.apply(lambda x: x.sample(g.size().min()))
+
+        y_val = val_set['y']
+        X_val = val_set.drop(columns=['y'])
+        print('Validation set contains {} samples, {} correct and {} incorrect'.format(len(y_val),np.sum(y_val),len(y_val)-np.sum(y_val)))
+        X_train,X_test,y_train,y_test = train_test_split(X_val,y_val,test_size=cfg_svm.frac_val_test,shuffle=True)
+
+        clf_svm = SVC(kernel='linear')
+        clf_svm.fit(X_train,y_train)
+        y_test_pred = clf_svm.predict(X_test)
+        y_train_pred = clf_svm.predict(X_train)
+        print('Using features: {}'.format(', '.join(cfg_svm.feature_list)))
+
+        print('SVM train classification_report:')
+        train_report = classification_report(y_train,y_train_pred)
+        print(train_report)
+        print('SVM test classification_report:')
+        test_report = classification_report(y_test,y_test_pred)
+        print(test_report)
+
+        svm_save_dict = {'raw_outputs': teacher_outputs,
+                         'true_labels': real_labels,
+                         'feature_list': cfg.feature_list,
+                         'svm_object': clf_svm,
+                         'train_report': train_report,
+                         'test_report': test_report}
+        file_handle = open('svm_stuff_loop_{}.pkl'.format(rt_lp),'w')
+        pickle.dump(svm_save_dict,file_handle)
+        file_handle.close()
+
+        return clf_svm
     
     def gen_pseudolabels(self, model, data_orig, rt_lp, prev_thresh, confidence_measure):
         model.eval()
@@ -265,7 +376,7 @@ class GenPseudolabel():
         
         stat_portion = [x for x in data_orig if x["labelled"]=="stats"]
         if len(stat_portion)>0:
-            fun = self.get_svm_func(stat_portion)
+            fun = self.get_svm_func(stat_portion,model,rt_lp)
             params = {"fun":fun}
         else:
             params = {}
@@ -318,7 +429,7 @@ class GenPseudolabel():
                     elif sample["labelled"] == "stats":
                         output_arr.append(outputs[true_i:true_i+n_augments])
                         target_arr.append(tmp['label'])
-                        take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure_3(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
                                                                                                      label=tmp['label'], params=params)
                         tmp['cont_label'] = torch.from_numpy(np.zeros(10)).type(torch.FloatTensor)
                         tmp['labelled'] = "stats"
@@ -338,7 +449,7 @@ class GenPseudolabel():
                         #s = np.std(variances_correct)
                         #prev_thresh = m + (3*s)/(rt_lp+1)
                         prev_thresh=0
-                        take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
+                        take, variances, one_hot_pseudolabel, pseudolabel, skip = confidence_measure_3(outputs[true_i:true_i+n_augments], prev_thresh=prev_thresh,
                                                                                                                  label=tmp['label'], params=params)
                         all_variances.append(variances)
                         tmp['cont_label'] = torch.from_numpy(pseudolabel).type(torch.FloatTensor)
@@ -474,7 +585,27 @@ class ConfidenceMeasure():
             else:
                 take = False
         return take, variances, np.argmax(pseudolabel), pseudolabel, skip
-    
-    
-    
-    
+
+    def confidence_measure_3(self, reconstructions,prev_thresh,label=None,params={}):
+        min_variances = np.min(np.var(reconstructions, axis=0))
+        pseudolabel = np.mean(reconstructions, axis=0)
+
+        means = pseudolabel
+        variances = np.var(reconstructions, axis=0)
+        means = means.reshape(len(means),1)
+        variances = variances.reshape(len(means),1)
+        data = {}
+        for feature in cfg_svm.feature_list:
+            data[feature] = eval(cfg_svm.feature_funcs[feature])
+        
+        df = pd.DataFrame(data)
+
+        dist = params['fun'].decision_function(df)
+
+        if np.abs(dist) > prev_thresh:
+            take = True
+        else:
+            take = False
+        skip = False
+        
+        return take, min_variances, np.argmax(pseudolabel), pseudolabel, skip
