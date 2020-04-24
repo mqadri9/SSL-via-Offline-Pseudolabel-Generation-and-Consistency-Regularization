@@ -31,7 +31,7 @@ class Config:
     
     # number of labelled sample that will not be used for testing 
     stats_samples_num = 1000
-    confidenceMeasure = "confidence_measure_1"
+    confidenceMeasure = "confidence_measure_3"
     # To train a student set train_teacher to True, load_latest_teacher to False
     # set training_split_percentage to 100% to train on the entire labelled set
     # else specify a specific training split
