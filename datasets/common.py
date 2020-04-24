@@ -300,11 +300,22 @@ class GenPseudolabel():
 
         print("inside_svm_fun. Length of stat_portion: {}".format(len(stat_portion)))
         teacher_outputs,real_labels = self.get_val_data(model,stat_portion)
-
+        
+        if cfg_svm.filter:
+            maxes = np.argmax(teacher_outputs,axis=2)
+            new_t_outputs = []
+            new_labels = []
+            for i,lab in enumerate(real_labels):
+                if np.max(np.bincount(maxes[i])) == 10:
+                    new_t_outputs.append(teacher_outputs[i])
+                    new_labels.append(lab)
+            teacher_outputs = new_t_outputs
+            real_labels = new_labels
         # Featurize data
         variances = np.var(teacher_outputs,axis=1)
         means = np.mean(teacher_outputs,axis=1)
         pseudolabels = np.argmax(means,axis=1)
+        max_class = np.max(teacher_outputs,axis=2)
 
         # Create y by identifying correct and incorrect pseudos
         y_lab = [1 if true == pseudolabels[idx] else -1 for idx,true in enumerate(real_labels)]
@@ -320,6 +331,7 @@ class GenPseudolabel():
         
         data['y'] = y_lab
         df = pd.DataFrame(data)
+
         
         #df_all = copy.deepcopy(df)
         #y_all = df_all['y']
@@ -361,7 +373,9 @@ class GenPseudolabel():
                          'feature_list': cfg_svm.feature_list,
                          'svm_object': clf_svm,
                          'train_report': train_report,
-                         'test_report': test_report}
+                         'test_report': test_report,
+                         'X_val': X_val,
+                         'y_val': y_val}
         file_name = 'svm_stuff_loop_{}.pkl'.format(rt_lp)
         with open(file_name, 'wb') as fid:
             pickle.dump(svm_save_dict, fid, pickle.HIGHEST_PROTOCOL)
@@ -602,10 +616,12 @@ class ConfidenceMeasure():
         means = pseudolabel
         variances = np.var(reconstructions, axis=0)
         means = np.expand_dims(means, axis=0)
-        variances = np.expand_dims(variances, axis=0)   
+        variances = np.expand_dims(variances, axis=0)  
+        max_class = np.max(reconstructions,axis=1) 
         
         means = means.reshape(1, means.shape[1])
         variances = variances.reshape(1, means.shape[1])
+        max_class = max_class.reshape(1, means.shape[1])
         data = {}
         for feature in cfg_svm.feature_list:
             data[feature] = eval(cfg_svm.feature_funcs[feature])

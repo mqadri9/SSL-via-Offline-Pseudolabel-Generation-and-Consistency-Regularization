@@ -12,21 +12,21 @@ def add_pypath(path):
 
 
 class Config:
-    trainset = ["CIFAR10"]
-    #trainset = ["STL10"]
+    #trainset = ["CIFAR10"]
+    trainset = ["STL10"]
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, '..')
     model_dir = os.path.join(root_dir, 'models')
     dataset_dir = os.path.join(root_dir, 'datasets')
     
     net_arch = "resnet.ResNet18"
-    dataset = "CIFAR10"
-    #dataset = "STL10"
-    lr = 0.1
+    #dataset = "CIFAR10"
+    dataset = "STL10"
+    lr = 0.01
     num_workers = 2
     batch_size = 64 #16 #CIFAR 128
-    num_epochs = 450
-    lr_dec_epoch = [40, 150, 350]
+    num_epochs = 120
+    lr_dec_epoch = [40, 80]
     lr_dec_factor = 0.1
     
     # number of labelled sample that will not be used for testing 
@@ -39,7 +39,7 @@ class Config:
     train_teacher = False
     load_latest_teacher = True
     max_retrain_loop = 10
-    training_split_percentage = 10 # percentage of the labelled data
+    training_split_percentage = 'NA' # percentage of the labelled data
     labelled_selection_prob = 0.5
     balancing_factor = 0.1
     multiplicative = 1
