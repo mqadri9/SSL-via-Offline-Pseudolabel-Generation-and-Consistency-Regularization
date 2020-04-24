@@ -468,7 +468,7 @@ class GenPseudolabel():
 
                     if take:
                         data.append(tmp)
-            #if batch_idx > 400:
+            #if batch_idx > 2000:
             #    break
         
         print("maximum variance")
@@ -543,12 +543,9 @@ class ConfidenceMeasure():
         pass
     
     def sharpen(self, pseudolabel, T=2):
-        sign = np.sign(pseudolabel)
-        num = np.power(np.abs(pseudolabel), 1/T)
+        num = np.power(pseudolabel, 1/T)
         denom = np.sum(num)
-        
-        pseudolabel = sign*num/denom
-        
+        pseudolabel = num/denom
         return pseudolabel
     
        
@@ -616,10 +613,14 @@ class ConfidenceMeasure():
         df = pd.DataFrame(data)
         dist = params['fun'].decision_function(df)
         prediction = params['fun'].predict(df)
-        if prediction == 1 and np.abs(dist) > 1.5:
+
+        if dist > 1:
             take = True
         else:
             take = False
         skip = False
-        
+        maxes = np.argmax(reconstructions, axis=1)
+        counts = np.bincount(maxes)
+        if np.max(counts) < 10:
+            take=False
         return take, min_variances, np.argmax(pseudolabel), pseudolabel, skip
