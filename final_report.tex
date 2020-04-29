@@ -1,0 +1,186 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2020
+
+% ready for submission
+% \usepackage{neurips_2020}
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%     \usepackage[preprint]{neurips_2020}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2020}
+
+% to avoid loading the natbib package, add option nonatbib:
+\usepackage[final]{neurips_2020}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{graphicx}
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{xcolor}
+\newcommand\mycommfont[1]{\footnotesize\ttfamily\textcolor{grey}{#1}}
+\usepackage[compact]{titlesec}
+\titlespacing{\section}{0pt}{-1.1ex}{-1.1ex}
+\titleformat{\section}
+  {\normalfont\fontsize{12}{15}\bfseries}{\thesection}{1em}{}
+\usepackage{subcaption}
+\usepackage{algpseudocode,algorithm}
+
+\makeatletter
+\algrenewcommand\ALG@beginalgorithmic{\footnotesize}
+\makeatother
+\title{Semi-Supervised Learning via Offline Pseudolabel Generation and Consistency Regularization}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+\author{%
+  Mohamad Qadri \\
+  mqadri@andrew.cmu.edu\\
+  \And Maggie Collier\\
+  macollie@andrew.cmu.edu\\
+}
+
+
+\begin{document}
+\maketitle
+\section{Introduction}
+Semi-supervised learning (SSL) circumvents the need for labeling an entire dataset by enabling learning on a partially labeled dataset. However, training on both the labeled data and unlabeled data, which have label predictions (i.e. pseudolabels), sometimes does not improve performance relative to training with only the labeled portion of the dataset. One way this problem can be addressed is to investigate how pseudolabels are generated, selected, and/or modified.
+
+To explore this idea, we will use several benchmark datasets (i.e. CIFAR-10 and STL-10) and SSL approaches for image classification, and vary the way in which pseudolabeled data is generated and/or selected before being used for training. While we have identified some published work that might be useful for pseudolabel generation, we also have our own idea to formalize a pseudolabel confidence metric; with this metric, we can select the unlabeled data with higher confidence pseudolabels to be used for training a student network. As a baseline, we will implement a simplistic SSL approach in which the teacher network's predictions on the unlabeled data are taken as pseudolabels, without any special generation or selection steps. We will also implement and compare our approach against several published approaches which have related pseudolabel generation and selection strategies.
+\section{Data}
+Because we are scoping this project as a proof of concept, we are choosing to use common benchmarks in SSL, such as choosing the task of image classification. We have chosen to use CIFAR-10, which includes 60,000 images (50,000 in the training set) labeled with 1 of 10 classes for semi-supervised/unsupervised learning. 
+
+\section{Background}
+In our previous work, the upper and lower bounds on the testing accuracy were established in the case that only 10\% of CIFAR-10's training set is used as labeled data (using ResNet18). Through supervised learning on all 50,000 training samples in CIFAR-10, the upper bound was found to be approximately 90\% (left plot in Fig. \ref{upper_lower_bounds}). Supervised learning on 10\% of CIFAR-10's training set established the lower bound to be approximately 75\% (right plot in Fig. \ref{upper_lower_bounds}).
+\begin{figure}[ht]
+\centering
+\begin{subfigure}{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{upper_bound_plot.png}
+\end{subfigure}%
+\begin{subfigure}{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{lower_bound.png}
+\end{subfigure}
+\caption{The training and testing accuracy from training on 50,000 (left) and 5,000 (right) labeled samples from CIFAR-10}
+\label{upper_lower_bounds}
+\end{figure}
+
+To motivate this work, an approach based on \cite{xie2019selftraining} was implemented on CIFAR-10, in which 10\% of the training set was considered labeled. After excluding the portion of \cite{xie2019selftraining} that injects noise into the data, the implemented approach simply takes the teacher's raw predictions as the pseudolabels. Fig. \ref{raw_pseudos} demonstrates that this strategy barely improves the testing accuracy above the lower bound, indicating that the teacher's raw predictions are not informative enough to boost performance relative to the lower bound. This outcome motivates further investigation into how these raw predictions can be modified or used to select more informative pseudolabels.
+
+\begin{figure}[ht]
+\centering
+\begin{subfigure}{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{base_pseudo_plot.png}
+\end{subfigure}%
+\begin{subfigure}{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{base_loss.png}
+\end{subfigure}
+\caption{The accuracy (left) and loss (right) when taking the teacher's raw predictions as pseudolabels}
+\label{raw_pseudos}
+\end{figure}
+
+
+
+\section{Related Work}
+To familiarize ourselves with the current state of SSL, we explored a few papers and felt particularly interested in the MixMatch approach \cite{Berthelot2019MixMatch:Learning}. With respect to pseudolabel generation, MixMatch introduces an online pseudolabel generation; Pseudolabels are generated according the current state of the network where K rounds of  data augmentations are applied for each unlabelled data point in each batch, the average over all predictions across all augmentations is then calculated and fed into a sharpening function (which reduces the entropy of the pseudolabel). The output of the sharpening function is treated as the pseudolabel for the associated unlabelled sample. This method sparked our interest in exploring alternatives to pseudolabel generation and/or selection for training the student network. Early on, we were referred to an approach called data distillation \cite{Radosavovic_2018_CVPR}. In data distillation, the same model predicts labels for different augmentations of an unlabeled datapoint, and those predictions are ensembled to generate a pseudolabel. This paper references an analogous approach called model distillation where, instead of using a single model, different models make label predictions before the ensembling process \cite{hinton2015distilling}. \cite{xie2019selftraining} trains a teacher network on labeled ImageNet images. The teacher network is then used to produce pseudolabels for a large number of unlabelled images. Both the labels and pseudolabels are used to train a student network. The process is iterated by treating the student as the teacher network. Noise, in the form of dropout and data augmentation, is injected during the learning of the student which is shown to improve the generalization and accuracy of the predictions.
+After our preliminary review of the literature, we are interested in implementing/combining one or multiple of the published pseudolabel generation techniques. Our baseline, which is explained in more details in section 4, is based on \cite{xie2019selftraining}. 
+\section{Methods/Model}
+\subsection{Self-training based approach}
+
+\subsection{Network architecture and all layers}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{net.PNG}
+    \caption{Resnet-18 network used in all experiments in the report. (Figure generated with Hiddenlayer python libary). We used the raw output from the last linear layer in the data distillation and confidence measure pipelines. Residual networks were proposed in \bold{CITE HE Paper} which uses identity layers and residual shortcuts to ease the training of deeper networks and prevent the vanishing gradient problem} 
+    \label{fig:my_label}
+\end{figure}
+We view our network as a probabilistic function $f(y | z, \theta)$ conditioned on the the network weights $\theta$ and the input $z$. We borrow the notation used in \cite{Berthelot2019MixMatch:Learning}, we use $x$ for labeled samples, $u$ for unlabeled samples, $p$ for a hard label associated with a labeled sample $x$ and $q$ for a pseudolabel associated with unlabeled sample $u$. We refer to set of labeled data as $\mathcal{X}$ and the set of unlabeled data as $\mathcal{U}$
+\subsection{Data Augmentation}
+We leverage data augmentations in two different ways. First, while training a network, we perform typical online data augmentation on the input data; i.e for each  sample $x$, we generate a single augmented version $x_{a}=\text{Augment}(x)$. We also use data augmentation at the beginning of each teacher-student iteration $i$ to generate pseudolabel offline for the unlabelled data.  For each sample $u$ in the unlabeled set $\mathcal{U}$, we use the teacher (which is the student trained in loop $i-1$) to perform K=10 augmentations $u_{k}$ for $k \in 1..10$. In our \textit{data distillation} and \textit{data distillation + confidence measure} experiments, these augmentations are used to generate a pseudolabel by taking the average of all K augmentations over each class distribution $q = \frac{1}{K} \sum_{k=1}^{K} f_{i-1}(y | u_{k}, \theta)$. All augmentations consist of random cropping and random horizontal flips.
+\subsection{Confidence-measure-based pseudolabel selection}
+In this project, we hypothesised that careful selection of pseudolabels based on a confidence metric would increase the final accuracy of our network. (Explain the two confidence measures)
+
+\subsection{Loss function and batching process}
+We equally balance the number of unlabeled $|\mathcal{U}'|$ and labeled samples $|\mathcal{X}'|$ in each batch of size$|\mathcal{B}|$ ($|\mathcal{B}| = |\mathcal{X'}| + |\mathcal{U'}|$). Each sample in $\mathcal{B}$ is selected randomly from $\mathcal{X}$ or $\mathcal{U}$ as follows: we generate a random number $r$ from a uniform distribution $\mathcal{U}(0, 1)$ and select a labeled sample if $r<0.5$ and an unlabeled sample otherwise.
+\newline
+Our loss function is composed of an unlabelled loss term $\mathcal{L}_{\mathcal{U}}$ and a labelled loss term $\mathcal{L}_{\mathcal{X}}$ where:
+$\mathcal{L}_{\mathcal{U}} = ||f(y | u, \theta) -  q||_{2}^{2}$
+is an L2 loss between the output distribution of the network for sample $u$ and the corresponding pseudolabel which is a vector of continuous values and $\mathcal{L}_{\mathcal{X}} = H(p, f(y | x, \theta))$ is a cross entropy loss for the labeled training sample $x$. 
+\newline 
+We balance between the two losses using a balancing factor $\lambda$ to obtain our final loss function:
+$$\mathcal{L} = \frac{1}{|\mathcal{X}'|} \mathcal{L}_{\mathcal{X}} + \lambda\frac{1}{|\mathcal{U}'|} \mathcal{L}_{\mathcal{U}}$$ We experimented with different values of $\lambda \in [0.01, 0.1, 1]$ and used $\lambda=0.1$ throughout our experiments since it performed best.
+\subsection{Optimization algorithm}
+To train our network, we used stochastic gradient descent with momentum=0.9 and weight decay=$5\times10^{-4}$. We used pytorch's optimization package which provides 2 interfaces $loss.backward()$ to compute the gradients and $optimizer.step()$ to perform the parameter update. The generic SGD with momentum parameter update for a model with parameters $\theta$, momentum value equal to 0.9, learning rate $\eta$,  and Loss $\mathcal{L}$ is
+$$ 
+ v_{t} = 0.9 v_{t-1} + \eta \nabla_{\theta} \mathcal{L}(\theta) 
+$$
+$$
+\theta = \theta - v_{t}
+$$
+\begin{algorithm}
+\caption{Euclid’s algorithm}\label{euclid}
+\begin{algorithmic}[1]
+\Procedure{Euclid}{$a,b$}\Comment{The g.c.d. of a and b}
+\State $r\gets a\bmod b$
+\While{$r\not=0$}\Comment{We have the answer if r is 0}
+\State $a\gets b$
+\State $b\gets r$
+\State $r\gets a\bmod b$
+\EndWhile\label{euclidendwhile}
+\State \textbf{return} $b$\Comment{The gcd is b}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+\subsection{Other methods}
+After implementing our baseline searching for confidence metrics that would produce better results on the specific datasets or be generalizable to other datasets as well. 
+
+
+
+
+As of now, we have implemented a generic SSL approach based on \cite{xie2019selftraining} and performed initial experiments. This implementation can serve as our baseline. Currently, our implementation first trains a teacher network on the labeled training data. This teacher network is used to make predictions on the unlabeled training data. These predictions are taken as the pseudolabels for the unlabeled data. We then train a student network on both the labeled and pseudolabeled training data. We make this student network our teacher network for the next iteration and repeat this process until no further significant improvement is seen when comparing the student and the teacher networks. We use a ResNet-50 network as the backbone for all of our experiments. and we augment the images in our training set using random cropping and random horizontal flips. We use a batch size of 32. We equally balance the number of labels (categorical labels) and pseudolabels (soft labels i.e probability vectors ) in each batch (a custom pytorch dataloader has been implemented). The labelled and unlabelled datasplits are generated from the labelled (training) set of CIFAR10: 90\% of the data is treated as unlabelled and 10\% is treated as labelled. Experiencing with different splits was performed in \cite{Berthelot2019MixMatch:Learning} and we can use these results to benchmark our algorithm for different splits. So far, we have only run our implementation on CIFAR-10. \textbf{Please refer to algorithm 1}. For now the \textit{SatisfyConfidence} function returns True for all pseudolabels (no confidence metric yet)
+\section{Preliminary Results}
+The github repository containing the code can be found here: \textit{https://github.com/mqadri93/semi-supervised-training}.
+For our network trained on 100\% labeled data, a test accuracy of 88\% is achieved (Fig. 2). This supervised baseline performance gives us an idea of the maximum performance (upper bound) that can be achieved with our SSL image classification approach on CIFAR10. A teacher network trained on the 10\% of training data that is labeled achieves a testing accuracy of approximately 75\% (Fig. 1). We generated pseudolabels for the unlabelled data using this teacher network. Ideally, our pseudolabel predictions from the teacher network will be good enough to enable a student network, trained on both labeled and pseudolabeled data, to perform better than the teacher network. However, the performance of our student network, at approximately 74\% testing accuracy, is slightly worse than that of our teacher network. (Fig. 3) (we experimented with different values of $\lambda$ $\in [0.01, 0.1, 1]$ and we obtained the best accuracy of 74 \% for $\lambda$ = 0.1 ) Additionally, the student network's training accuracy is at best 87\%. These preliminary results demonstrate a common problem in self-training SSL approaches: Training a model on its own predictions might not have an effect on the solution since no new information is being provided by these pseudolabels \cite{Radosavovic_2018_CVPR}. Thus, we are motivated to investigate methods for pseudolabel generation and selection that result in more accurate pseudolabels and, as a result, improved overall performance. For all three networks, we compute testing and training classification accuracy and loss after each epoch. We use a cross entropy loss when training on labelled data only. For the student networks, we develop a combined loss which includes the cross entropy loss for the labeled samples and the L1 norm of the pseudolabeled samples, which is a similar combined loss function to the one in \cite{Berthelot2019MixMatch:Learning}: $J = CrossEntropy(labelled) + \lambda L1_{loss}(unlabelled)$.
+\textit{We worked on making the code flexible so that we can interchange datasets, specify different data splits, probability of selection labelled data in a batch, batch size etc. for ease of future testing.}
+
+
+\section{Future Work}
+As stated before, our baseline is based on \cite{xie2019selftraining}. However, our initial teacher model is trained on much less labelled data (a portion of labelled CIFAR10 as opposed to the labeled ImageNet dataset) and as such, the pseudolabels generated will be less accurate. Therefore, we are motivated to investigate possible confidence metrics for pseudolabels selections. In addition, since we have limited access to hardware (GPUs) and therefore expect longer training time, we want to investigate how techniques inspired by MixMatch, can be utilized to perform offline high-confidence pseudolabel generation. The following is the full algorithm for offline pseudolabel generation with selection using a confidence measure: 
+\begin{figure}[H]
+\vspace*{-7mm}
+\includegraphics[height=7cm, width=11cm]{algorithm.JPG}
+\vspace*{-7mm}
+\end{figure}
+ENSEMBLE() takes in a set of outputs (probabilities) generated for the same unlabelled sample from different data augmentations and returns a single pseudolabel. We will start by taking the average of the probabilities as our pseudolabel. (similar to \cite{Berthelot2019MixMatch:Learning})
+SATISFYCONFIDENCE() takes in the same input as ENSEMBLE. It returns a boolean of whether the confidence score is satisfied. We will start by using the variance or the entropy based metrics. Please see the timeline in section 7. If time permits, we are aiming to perform tests with different data splits (vary the number of labelled data), different probabilities of selecting labelled vs unlabelled data in a batch and varying the loss balancing factor $\lambda$. We are also interested in implementing an online pseudolabel approach as in \cite{Berthelot2019MixMatch:Learning} and compare it to our offline pseudolabel generation method. Our primary measure of performance is how much we can approach the upper bound which is the performance of a fully supervised approach when using a limited number of labelled samples and a large number of pseudolabels.
+\section{Teammates and Work Division}
+The following is an outline of task assignment and expected completion date:
+
+\begin{figure}[H]
+\vspace*{-4mm}
+\includegraphics[height=4cm, width=14cm]{MLTimeline.JPG}
+\vspace*{-5mm}
+\end{figure}
+\bibliographystyle{unsrt}
+\bibliography{references.bib}
+\end{document}
