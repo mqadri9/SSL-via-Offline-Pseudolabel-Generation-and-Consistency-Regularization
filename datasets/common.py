@@ -130,7 +130,6 @@ class DatasetLoader2(Dataset):
         self.data = data
         condition_labelled = {"labelled": True}
         self.data_labelled = list(filter(lambda item: all((item[k]==v for (k,v) in condition_labelled.items())), self.data))
-        print(self.data_labelled[0]["input"])
         condition_unlabelled = {"labelled": False}
         self.data_unlabelled = list(filter(lambda item: all((item[k]==v for (k,v) in condition_unlabelled.items())), self.data))
         self.num_unlabelled = len(self.data_unlabelled)
@@ -535,7 +534,10 @@ class GenPseudolabel():
             inputs_cuda = inputs.to(device)
             inputs = inputs.detach().cpu().numpy()
             label = label.detach().cpu().numpy()
-            labelled = labelled.detach().cpu().numpy()
+            try:
+                labelled = labelled.detach().cpu().numpy()
+            except:
+                labelled = np.array(labelled)
             index = index.detach().cpu().numpy()
             with torch.no_grad():
                 outputs = model(inputs_cuda)
@@ -543,12 +545,17 @@ class GenPseudolabel():
             outputs = outputs.detach().cpu().numpy()
             for i in range(inputs.shape[0]):
                 tmp = {
-                    'labelled':labelled[i],
                     'index': index[i],
                     'input': inputs[i]
                 }
                 tmp['label'] = label[i]
                 tmp['cont_label'] = outputs[i]
+                if labelled[i] == "True":
+                    tmp["labelled"] = True
+                elif labelled[i] == "False":
+                    tmp["labelled"] = False
+                else:
+                    continue
                 data.append(tmp)
         return data
 

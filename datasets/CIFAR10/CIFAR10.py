@@ -154,7 +154,7 @@ class SpecLoader():
         self.cross_entropy_test = nn.CrossEntropyLoss()
     
 
-    def gen_pseudolabels2(self, model, data_orig, rt_lp):
+    def gen_pseudolabels2(self, model, data_orig, rt_lp, prev_thresh):
         
         print("generated pseudolabels")
         
@@ -164,10 +164,10 @@ class SpecLoader():
                                                       shuffle=False, 
                                                       num_workers=self.cfg.num_workers)
 
-        PseudolabelGen = GenPseudolabel(self.cfg, self.transform_train)  
+        PseudolabelGen = GenPseudolabel(self.cfg, self.transform_train, self.transform_data_distill)  
         data = PseudolabelGen.gen_pseudolabels2(model, data_orig, rt_lp)        
         
-        self.trainset_loader = DatasetLoader(data, self.cfg, self.path_to_dataset, self.transform_train, already_transformed=True)
+        self.trainset_loader = DatasetLoader2(data, self.cfg, self.path_to_dataset, self.transform_train, already_transformed=True)
         
         self.batch_generator = DataLoader(self.trainset_loader, 
                                           batch_size=self.cfg.batch_size, 
