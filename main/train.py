@@ -26,7 +26,6 @@ args = parser.parse_args()
  
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-print(device) 
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
  
@@ -115,7 +114,7 @@ def train(specLoader, net, optimizer, scheduler, fun="teacher", rt_lp=1, start_e
             outputs = net(inputs)
             #print(type(data['labelled']))
             try:
-                loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'].byte(), cfg)
+                loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'], cfg)
                 mask = [True if x.item() == "True" or x.item() == True else False for x in data['labelled']]
             except:
                 loss = specLoader.criterion(targets, cont_targets, outputs, data['labelled'], cfg)
